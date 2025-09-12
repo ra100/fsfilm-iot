@@ -7,6 +7,10 @@
 
 ## Recent Changes
 
+- Refactored `generatePortalEffect()` to be more reusable and fixed LED sequence generation issues.
+- Updated blending logic to take the whole value of the LED from the sequence with higher brightness.
+- Added a test for `generatePortalEffect()` in `test/test_portal_effect.cpp`.
+
 - No major code changes recorded; project is in active development with implemented features for LED effects, input handling, and web interface.
 - Memory bank files (product.md, context.md) created as part of initialization.
 
