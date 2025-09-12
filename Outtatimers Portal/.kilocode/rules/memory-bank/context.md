@@ -7,17 +7,18 @@
 
 ## Recent Changes
 
-- Refactored `generatePortalEffect()` to be more reusable and fixed LED sequence generation issues.
-- Updated blending logic to take the whole value of the LED from the sequence with higher brightness.
-- Added a test for `generatePortalEffect()` in `test/test_portal_effect.cpp`.
-
-- No major code changes recorded; project is in active development with implemented features for LED effects, input handling, and web interface.
-- Memory bank files (product.md, context.md) created as part of initialization.
+- **Major refactoring of portal effects system**: Implemented second portal effect with two counter-rotating hue sequences that blend additively.
+- **Function pointer architecture**: Refactored `generatePortalEffect()` to use `DriverColorGenerator` function pointers, making it highly reusable and extensible.
+- **Virtual gradient sequences**: Implemented sparse driver pattern with "1 color, 2 black" sequence for creating breaks between color gradients.
+- **Improved blending logic**: Updated to take whole LED value from sequence with higher brightness for better visual effect.
+- **Enhanced rotation system**: Virtual gradients rotate at half speed with counter-rotating sequences for wave effect.
+- **Testing improvements**: Added comprehensive test for `generatePortalEffect()` in `test/test_portal_effect.cpp`.
+- **Build optimizations**: Fixed FastLED configuration warnings and type safety issues.
 
 ## Next Steps
 
-- Document system architecture and technology stack in memory bank.
-- Verify memory bank accuracy with user feedback.
-- Expand testing coverage and integrate hardware for full validation.
-- Potential enhancements to web interface or effect modes.
-- Color bug fixes implemented: Added srand(millis()) in main.cpp setup() for uniform random; Serial debug in portal_effect.h getRandomDriverColorInternal() (hue/sat/val) and virtualGradientEffect() (blended RGB every 10 LEDs). Upload via 'pio run -t upload', monitor Serial at 115200, test with hue 250 (set via web UI or curl), check logs for unexpected green (G>0 in RGB for magenta hues). Regeneration verified via flag in update().
+- **Hardware validation**: Test the refactored portal effects on actual ESP8266 hardware with 800-LED WS2812B strip.
+- **Performance optimization**: Monitor memory usage and frame rates with the new function pointer architecture.
+- **Effect tuning**: Fine-tune the "1 color, 2 black" pattern spacing and brightness transitions for optimal visual impact.
+- **Documentation**: Create architecture.md to document the new modular effect generation system.
+- **Testing expansion**: Add more comprehensive tests for the virtual gradient effect and color generation functions.
