@@ -100,7 +100,7 @@ public:
       fadeInActive = true;
       fadeInStart = millis();
       gradientPosition = 0;
-      generatePortalEffect((CRGB *)effectLeds);
+      generatePortalEffect(effectLeds);
     }
   }
 
@@ -269,20 +269,24 @@ public:
     return driverColors;
   }
 
-  void generatePortalEffect(CRGB *sequence, bool useBlackDrivers = false, uint8_t hue = 0)
-  {
-    CRGB driverColors[N];
-    int numDrivers = 0;
-    generateDriverColors(driverColors, numDrivers, useBlackDrivers, hue);
+  typedef CRGB (*DriverColorGenerator)(int driverIndex);
 
-    static int driverIndices[N];
+  void generatePortalEffect(CRGB *effectLeds, DriverColorGenerator colorGen = nullptr)
+  {
     const int minDist = PortalConfig::Effects::MIN_DRIVER_DISTANCE;
     const int maxDist = PortalConfig::Effects::MAX_DRIVER_DISTANCE;
+    int driverIndices[N];
+    CRGB driverColors[N];
+    int numDrivers = 0;
     int idx = 0;
-    numDrivers = 0;
+
     while (idx < NUM_LEDS - minDist && numDrivers < N - 1)
     {
       driverIndices[numDrivers] = idx;
+      if (colorGen)
+        driverColors[numDrivers] = colorGen(numDrivers);
+      else
+        driverColors[numDrivers] = getRandomDriverColorInternal();
       numDrivers++;
       int step = minDist + random(maxDist - minDist + 1);
       if (idx + step > NUM_LEDS - minDist)
@@ -290,6 +294,7 @@ public:
       idx += step;
     }
     driverIndices[numDrivers] = NUM_LEDS;
+    driverColors[numDrivers] = driverColors[0];
     numDrivers++;
 
     for (int d = 0; d < numDrivers - 1; d++)
@@ -305,8 +310,23 @@ public:
         CRGB col = interpolateColor(c1, c2, ratio);
         int pos = start + i;
         if (pos >= 0 && pos < NUM_LEDS)
-          sequence[pos] = col; // Store brightness in sequence array
+          effectLeds[pos] = col;
       }
+    }
+  }
+
+  // Helper function for virtual gradient sequences with black drivers
+  CRGB virtualGradientColorGen(int driverIndex, uint8_t hue)
+  {
+    if (driverIndex % 3 == 0) // 1 color, 2 black pattern
+    {
+      uint8_t sat = PortalConfig::Effects::PORTAL_SAT_BASE + random(PortalConfig::Effects::PORTAL_SAT_RANGE);
+      uint8_t val = PortalConfig::Effects::PORTAL_VAL_BASE + random(PortalConfig::Effects::PORTAL_VAL_RANGE);
+      return CHSV(hue, sat, val);
+    }
+    else
+    {
+      return CRGB(0, 0, 0); // Black for breaks
     }
   }
 
@@ -422,8 +442,39 @@ public:
 
     if (!sequenceInitialized)
     {
-      generatePortalEffect((CRGB *)sequence1, true, (uint8_t)ConfigManager::getHueMin());
-      generatePortalEffect((CRGB *)sequence2, true, (uint8_t)ConfigManager::getHueMax());
+      // Create lambda functions for virtual gradient color generation
+      auto colorGen1 = [](int driverIndex) -> CRGB
+      {
+        if (driverIndex % 3 == 0) // 1 color, 2 black pattern
+        {
+          uint8_t hue = ConfigManager::getHueMin();
+          uint8_t sat = PortalConfig::Effects::PORTAL_SAT_BASE + random(PortalConfig::Effects::PORTAL_SAT_RANGE);
+          uint8_t val = PortalConfig::Effects::PORTAL_VAL_BASE + random(PortalConfig::Effects::PORTAL_VAL_RANGE);
+          return CHSV(hue, sat, val);
+        }
+        else
+        {
+          return CRGB(0, 0, 0); // Black for breaks
+        }
+      };
+
+      auto colorGen2 = [](int driverIndex) -> CRGB
+      {
+        if (driverIndex % 3 == 0) // 1 color, 2 black pattern
+        {
+          uint8_t hue = ConfigManager::getHueMax();
+          uint8_t sat = PortalConfig::Effects::PORTAL_SAT_BASE + random(PortalConfig::Effects::PORTAL_SAT_RANGE);
+          uint8_t val = PortalConfig::Effects::PORTAL_VAL_BASE + random(PortalConfig::Effects::PORTAL_VAL_RANGE);
+          return CHSV(hue, sat, val);
+        }
+        else
+        {
+          return CRGB(0, 0, 0); // Black for breaks
+        }
+      };
+
+      generatePortalEffect(sequence1, colorGen1);
+      generatePortalEffect(sequence2, colorGen2);
 
       // Seed random once
       randomSeed(millis());
