@@ -462,34 +462,96 @@ public:
     _driver->show();
   }
 
-  void virtualGradientEffect()
+  // Calculate interpolated brightness for a sequence at a given LED position
+  uint8_t calculateSequenceBrightness(const CRGB *sequence, int ledIndex, int gradientPos, bool clockwise)
   {
-    float fadeScale = 1.0f;
-    if (fadeInActive)
+    int pos = (ledIndex + gradientPos) % PortalConfig::Hardware::NUM_LEDS;
+    uint8_t bright = sequence[pos].b;
+
+    // Find next non-black driver for interpolation
+    int nextDriver = clockwise ? (pos + 10) % PortalConfig::Hardware::NUM_LEDS : (pos - 10 + PortalConfig::Hardware::NUM_LEDS) % PortalConfig::Hardware::NUM_LEDS;
+
+    int step = clockwise ? 1 : -1;
+    while (sequence[nextDriver].b == 0 && nextDriver != pos)
     {
-      unsigned long now = millis();
-      float t = (now - fadeInStart) / (float)PortalConfig::Timing::FADE_IN_DURATION_MS;
-      fadeScale = constrain(t, 0.0f, 1.0f);
+      nextDriver = (nextDriver + step + PortalConfig::Hardware::NUM_LEDS) % PortalConfig::Hardware::NUM_LEDS;
+    }
+
+    if (nextDriver != pos)
+    {
+      int dist = clockwise ? (nextDriver - pos + PortalConfig::Hardware::NUM_LEDS) % PortalConfig::Hardware::NUM_LEDS : (pos - nextDriver + PortalConfig::Hardware::NUM_LEDS) % PortalConfig::Hardware::NUM_LEDS;
+
+      if (dist > PortalConfig::Hardware::NUM_LEDS / 2)
+      {
+        dist = PortalConfig::Hardware::NUM_LEDS - dist;
+      }
+
+      float ratio = (float)(ledIndex - pos + PortalConfig::Hardware::NUM_LEDS) % PortalConfig::Hardware::NUM_LEDS / dist;
+      bright = (uint8_t)(sequence[pos].b * (1.0f - ratio) + sequence[nextDriver].b * ratio);
+    }
+
+    return bright;
+  }
+
+  // Blend two colors based on brightness, taking the whole color from the brighter sequence
+  CRGB blendByBrightness(CRGB color1, CRGB color2, uint8_t bright1, uint8_t bright2)
+  {
+    return (bright1 > bright2) ? color1 : color2;
+  }
+
+  // Unified fade calculation for both fade in and fade out
+  float calculateFade(bool isFadeIn, unsigned long startTime, float duration)
+  {
+    unsigned long now = millis();
+    float t = (now - startTime) / duration;
+    float fadeScale = constrain(t, 0.0f, 1.0f);
+
+    if (isFadeIn)
+    {
       if (fadeScale >= 1.0f)
       {
         fadeInActive = false;
-        fadeScale = 1.0f;
+        return 1.0f;
       }
+      return fadeScale;
     }
-    else if (fadeOutActive)
+    else // fade out
     {
-      unsigned long now = millis();
-      float t = (now - fadeOutStart) / (float)PortalConfig::Timing::FADE_OUT_DURATION_MS;
-      fadeScale = 1.0f - constrain(t, 0.0f, 1.0f);
+      fadeScale = 1.0f - fadeScale;
       if (fadeScale <= 0.0f)
       {
         fadeOutActive = false;
-        fadeScale = 0.0f;
         animationActive = false;
         _driver->clear();
         _driver->show();
-        return;
+        return 0.0f;
       }
+      return fadeScale;
+    }
+  }
+
+  // Apply fade scaling to a color
+  void applyFade(CRGB &color, float fadeScale)
+  {
+    if (fadeScale < 1.0f)
+    {
+      color.nscale8((uint8_t)(fadeScale * 255));
+    }
+  }
+
+  void virtualGradientEffect()
+  {
+    // Handle fade transitions with unified function
+    float fadeScale = 1.0f;
+    if (fadeInActive)
+    {
+      fadeScale = calculateFade(true, fadeInStart, PortalConfig::Timing::FADE_IN_DURATION_MS);
+    }
+    else if (fadeOutActive)
+    {
+      fadeScale = calculateFade(false, fadeOutStart, PortalConfig::Timing::FADE_OUT_DURATION_MS);
+      if (fadeScale == 0.0f)
+        return; // Early exit on fade out completion
     }
 
     uint8_t hue1 = ConfigManager::getHueMin();
@@ -499,72 +561,24 @@ public:
     if (!sequenceInitialized)
       generateVirtualGradients();
 
+    // Process each LED using functional composition
     for (int i = 0; i < PortalConfig::Hardware::NUM_LEDS; i++)
     {
-      // Gradient 1: clockwise rotation
-      int pos1 = (i + gradientPos1) % PortalConfig::Hardware::NUM_LEDS;
-      uint8_t bright1 = sequence1[pos1].b;
+      // Calculate brightness for both sequences
+      uint8_t bright1 = calculateSequenceBrightness(sequence1, i, gradientPos1, true);  // clockwise
+      uint8_t bright2 = calculateSequenceBrightness(sequence2, i, gradientPos2, false); // counterclockwise
 
-      // Interpolate between drivers for sequence 1
-      int nextDriver1 = (pos1 + 10) % PortalConfig::Hardware::NUM_LEDS;
-      while (sequence1[nextDriver1] == 0 && nextDriver1 != pos1)
-      {
-        nextDriver1 = (nextDriver1 + 1) % PortalConfig::Hardware::NUM_LEDS;
-      }
-
-      if (nextDriver1 != pos1)
-      {
-        int dist1 = (nextDriver1 - pos1 + PortalConfig::Hardware::NUM_LEDS) % PortalConfig::Hardware::NUM_LEDS;
-        if (dist1 > PortalConfig::Hardware::NUM_LEDS / 2)
-        {
-          dist1 = PortalConfig::Hardware::NUM_LEDS - dist1;
-        }
-
-        float ratio1 = (float)(i - pos1 + PortalConfig::Hardware::NUM_LEDS) / dist1;
-        bright1 = (sequence1[pos1].b * (1.0f - ratio1) + sequence1[nextDriver1].b * ratio1);
-      }
-
+      // Create colors from brightness values
       CRGB color1 = CHSV(hue1, 255, bright1);
-
-      // Gradient 2: counterclockwise rotation
-      int pos2 = (i + gradientPos2) % PortalConfig::Hardware::NUM_LEDS;
-      uint8_t bright2 = sequence2[pos2].b;
-
-      // Interpolate between drivers for sequence 2
-      int nextDriver2 = (pos2 + 10 + PortalConfig::Hardware::NUM_LEDS) % PortalConfig::Hardware::NUM_LEDS;
-      while (sequence2[nextDriver2] == 0 && nextDriver2 != pos2)
-      {
-        nextDriver2 = (nextDriver2 - 1 + PortalConfig::Hardware::NUM_LEDS) % PortalConfig::Hardware::NUM_LEDS;
-      }
-
-      if (nextDriver2 != pos2)
-      {
-        int dist2 = (pos2 - nextDriver2 + PortalConfig::Hardware::NUM_LEDS) % PortalConfig::Hardware::NUM_LEDS;
-        if (dist2 > PortalConfig::Hardware::NUM_LEDS / 2)
-        {
-          dist2 = PortalConfig::Hardware::NUM_LEDS - dist2;
-        }
-
-        float ratio2 = (float)(i - pos2 + PortalConfig::Hardware::NUM_LEDS) / dist2;
-        bright2 = (sequence2[pos2].b * (1.0f - ratio2) + sequence2[nextDriver2].b * ratio2);
-      }
-
       CRGB color2 = CHSV(hue2, 255, bright2);
 
-      // Take the whole value of the LED from the sequence with higher brightness
-      CRGB blended;
-      if (bright1 > bright2)
-      {
-        blended = color1;
-      }
-      else
-      {
-        blended = color2;
-      }
+      // Blend based on brightness dominance
+      CRGB blended = blendByBrightness(color1, color2, bright1, bright2);
+
+      // Apply fade scaling
+      applyFade(blended, fadeScale);
 
       _driver->setPixel(i, blended);
-      if (fadeScale < 1.0f)
-        _driver->getBuffer()[i].nscale8((uint8_t)(fadeScale * 255));
     }
 
     _driver->setBrightness(ConfigManager::getMaxBrightness());
