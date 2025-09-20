@@ -212,6 +212,9 @@ public:
     if (sequenceInitialized)
       return;
 
+    // Seed random once
+    randomSeed(millis());
+
     uint8_t hue1 = ConfigManager::getHueMin();
     uint8_t hue2 = ConfigManager::getHueMax();
 
@@ -233,20 +236,17 @@ public:
     // Generate sequence 2: 1 color, 2 black pattern with different hue
     for (int i = 0; i < PortalConfig::Hardware::NUM_LEDS; i++)
     {
-      if (i % 3 == 0) // Every 3rd LED gets color
-      {
-        uint8_t sat = PortalConfig::Effects::PORTAL_SAT_BASE + random(PortalConfig::Effects::PORTAL_SAT_RANGE);
-        uint8_t val = PortalConfig::Effects::PORTAL_VAL_BASE + random(PortalConfig::Effects::PORTAL_VAL_RANGE);
-        sequence2[i] = CHSV(hue2, sat, val);
-      }
-      else
+      // if (i % 3 == 0) // Every 3rd LED gets color
+      // {
+      //   uint8_t sat = PortalConfig::Effects::PORTAL_SAT_BASE + random(PortalConfig::Effects::PORTAL_SAT_RANGE);
+      //   uint8_t val = PortalConfig::Effects::PORTAL_VAL_BASE + random(PortalConfig::Effects::PORTAL_VAL_RANGE);
+      //   sequence2[i] = CHSV(hue2, sat, val);
+      // }
+      // else
       {
         sequence2[i] = CRGB(0, 0, 0); // Black for breaks
       }
     }
-
-    // Seed random once
-    randomSeed(millis());
 
     sequenceInitialized = true;
   }
@@ -480,10 +480,14 @@ public:
     return bright;
   }
 
-  // Blend two colors based on brightness, taking the whole color from the brighter sequence
+  // Blend two colors additively, combining both sequences for brighter, more vibrant effect
   CRGB blendByBrightness(CRGB color1, CRGB color2, uint8_t bright1, uint8_t bright2)
   {
-    return (bright1 > bright2) ? color1 : color2;
+    // Additive blending: add RGB components together with clamping
+    uint8_t r = min(255, (uint16_t)color1.r + (uint16_t)color2.r);
+    uint8_t g = min(255, (uint16_t)color1.g + (uint16_t)color2.g);
+    uint8_t b = min(255, (uint16_t)color1.b + (uint16_t)color2.b);
+    return CRGB(r, g, b);
   }
 
   // Unified fade calculation for both fade in and fade out
@@ -541,9 +545,6 @@ public:
         return; // Early exit on fade out completion
     }
 
-    uint8_t hue1 = ConfigManager::getHueMin();
-    uint8_t hue2 = ConfigManager::getHueMax();
-
     // Ensure virtual sequences are generated
     if (!sequenceInitialized)
       generateVirtualGradients();
@@ -551,16 +552,15 @@ public:
     // Process each LED using functional composition
     for (int i = 0; i < PortalConfig::Hardware::NUM_LEDS; i++)
     {
-      // Calculate brightness for both sequences
-      uint8_t bright1 = calculateSequenceBrightness(sequence1, i, gradientPos1, true);  // clockwise
-      uint8_t bright2 = calculateSequenceBrightness(sequence2, i, gradientPos2, false); // counterclockwise
+      // Get the actual LED values from both sequences
+      int pos1 = (i + gradientPos1) % PortalConfig::Hardware::NUM_LEDS;
+      int pos2 = (i + gradientPos2 + PortalConfig::Hardware::NUM_LEDS) % PortalConfig::Hardware::NUM_LEDS;
 
-      // Create colors from brightness values
-      CRGB color1 = CHSV(hue1, 255, bright1);
-      CRGB color2 = CHSV(hue2, 255, bright2);
+      CRGB led1 = sequence1[pos1];
+      CRGB led2 = sequence2[pos2];
 
-      // Blend based on brightness dominance
-      CRGB blended = blendByBrightness(color1, color2, bright1, bright2);
+      // Blend the actual LED values additively
+      CRGB blended = blendByBrightness(led1, led2, 0, 0); // brightness params not needed for additive blending
 
       // Apply fade scaling
       applyFade(blended, fadeScale);
