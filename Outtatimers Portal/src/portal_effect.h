@@ -245,9 +245,33 @@ public:
       // Only every 3rd driver gets color, others are black
       if (numDrivers % 3 == 0)
       {
+        // Randomly select hue from min to max range for more dynamic effect
+        uint8_t hueMin = ConfigManager::getHueMin();
+        uint8_t hueMax = ConfigManager::getHueMax();
+        uint8_t randomHue;
+
+        if (hueMin <= hueMax)
+        {
+          randomHue = hueMin + random(hueMax - hueMin + 1);
+        }
+        else
+        {
+          // Handle wrap-around (e.g., min=250, max=10)
+          uint8_t range1 = 256 - hueMin;
+          uint8_t range2 = hueMax + 1;
+          if (random(range1 + range2) < range1)
+          {
+            randomHue = hueMin + random(range1);
+          }
+          else
+          {
+            randomHue = random(range2);
+          }
+        }
+
         uint8_t sat = PortalConfig::Effects::PORTAL_SAT_BASE + random(PortalConfig::Effects::PORTAL_SAT_RANGE);
         uint8_t val = PortalConfig::Effects::PORTAL_VAL_BASE + random(PortalConfig::Effects::PORTAL_VAL_RANGE);
-        driverColors[numDrivers] = CHSV(hue, sat, val);
+        driverColors[numDrivers] = CHSV(randomHue, sat, val);
       }
       else
       {
