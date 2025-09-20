@@ -212,51 +212,38 @@ public:
     if (sequenceInitialized)
       return;
 
-    // Create lambda functions for virtual gradient color generation
-    auto colorGen1 = [](int driverIndex) -> CRGB
-    {
-      return CRGB(0, 0, 0);
-    };
+    uint8_t hue1 = ConfigManager::getHueMin();
+    uint8_t hue2 = ConfigManager::getHueMax();
 
-    auto colorGen2 = [](int driverIndex) -> CRGB
+    // Generate sequence 1: 1 color, 2 black pattern
+    for (int i = 0; i < PortalConfig::Hardware::NUM_LEDS; i++)
     {
-      return CRGB(0, 0, 0);
-    };
-
-    // Actual generation happens below using the same logic as previously in virtualGradientEffect
-    // Use local color generators that reference ConfigManager when placing drivers
-    auto vg_colorGen1 = [](int driverIndex) -> CRGB
-    {
-      if (driverIndex % 3 == 0) // 1 color, 2 black pattern
+      if (i % 3 == 0) // Every 3rd LED gets color
       {
-        uint8_t hue = ConfigManager::getHueMin();
         uint8_t sat = PortalConfig::Effects::PORTAL_SAT_BASE + random(PortalConfig::Effects::PORTAL_SAT_RANGE);
         uint8_t val = PortalConfig::Effects::PORTAL_VAL_BASE + random(PortalConfig::Effects::PORTAL_VAL_RANGE);
-        return CHSV(hue, sat, val);
+        sequence1[i] = CHSV(hue1, sat, val);
       }
       else
       {
-        return CRGB(0, 0, 0); // Black for breaks
+        sequence1[i] = CRGB(0, 0, 0); // Black for breaks
       }
-    };
+    }
 
-    auto vg_colorGen2 = [](int driverIndex) -> CRGB
+    // Generate sequence 2: 1 color, 2 black pattern with different hue
+    for (int i = 0; i < PortalConfig::Hardware::NUM_LEDS; i++)
     {
-      if (driverIndex % 3 == 0) // 1 color, 2 black pattern
+      if (i % 3 == 0) // Every 3rd LED gets color
       {
-        uint8_t hue = ConfigManager::getHueMax();
         uint8_t sat = PortalConfig::Effects::PORTAL_SAT_BASE + random(PortalConfig::Effects::PORTAL_SAT_RANGE);
         uint8_t val = PortalConfig::Effects::PORTAL_VAL_BASE + random(PortalConfig::Effects::PORTAL_VAL_RANGE);
-        return CHSV(hue, sat, val);
+        sequence2[i] = CHSV(hue2, sat, val);
       }
       else
       {
-        return CRGB(0, 0, 0); // Black for breaks
+        sequence2[i] = CRGB(0, 0, 0); // Black for breaks
       }
-    };
-
-    generatePortalEffect(sequence1, vg_colorGen1);
-    generatePortalEffect(sequence2, vg_colorGen2);
+    }
 
     // Seed random once
     randomSeed(millis());
