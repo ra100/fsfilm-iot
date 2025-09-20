@@ -18,7 +18,7 @@
 
 - **Memory**: Static buffers for LED data (800 CRGB ~ 2.4KB), careful with ESP8266 RAM limits.
 - **Timing**: Non-blocking updates at 10ms intervals for ~100 FPS, no delays in loop.
-- **WiFi**: STA mode for connection, optional AP fallback not implemented.
+- **WiFi**: STA mode for connection with automatic AP fallback on connection failure, 10-second timeout.
 - **LED Strip**: WS2812B protocol requires precise timing, FastLED handles interrupts.
 
 ## Dependencies

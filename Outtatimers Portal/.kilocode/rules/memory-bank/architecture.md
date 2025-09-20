@@ -32,7 +32,7 @@
 
 - **InputManager** (`src/input_manager.h`): Unified command handling from multiple sources
 - **ButtonInputSource**: Physical button debouncing and mapping
-- **WiFiInputSource** (`src/wifi_input_source.h`): HTTP API and web interface
+- **WiFiInputSource** (`src/wifi_input_source.h`): HTTP API and web interface with automatic AP fallback
 
 ## Key Technical Decisions
 
@@ -43,6 +43,32 @@ The `generatePortalEffect()` function uses function pointers to decouple color g
 ```cpp
 typedef CRGB (*DriverColorGenerator)(int driverIndex);
 void generatePortalEffect(CRGB *effectLeds, DriverColorGenerator colorGen = nullptr)
+```
+
+### WiFi Connection Fallback Mechanism
+
+The WiFi input source implements a robust fallback mechanism for network connectivity:
+
+- **Non-blocking Connection**: WiFi connection attempts are non-blocking to maintain responsive button input
+- **Connection Timeout**: 10-second timeout (`WIFI_TIMEOUT_MS`) for STA connection attempts
+- **Automatic AP Fallback**: Switches to Access Point mode when STA connection fails
+- **Captive Portal**: Provides web interface for configuration when in AP mode
+- **Status Indication**: Uses status LED to indicate connection state (CONNECTING_STA → AP_MODE)
+
+### WiFi State Machine
+
+```
+WiFi.begin(ssid, password)
+    ↓ (10 second timeout)
+WiFi.status() == WL_CONNECTED?
+    ├── YES → STA_CONNECTED mode
+    └── NO  → switchToAPMode()
+                ↓
+            AP_MODE with web server
+                ↓
+            User connects and configures
+                ↓
+            Restart with new credentials
 ```
 
 ### Virtual Gradient Implementation

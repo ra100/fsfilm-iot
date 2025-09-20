@@ -50,7 +50,8 @@ public:
    * @param port HTTP server port (default: 80)
    */
   explicit WiFiInputSource(int port = 80)
-      : server_(port), eventQueueHead_(0), eventQueueTail_(0), isConnected_(false) {}
+      : server_(port), eventQueueHead_(0), eventQueueTail_(0), isConnected_(false),
+        connectionStartTime_(0), inAPMode_(false), apServerStarted_(false) {}
 
   /**
    * @brief Initialize WiFi and start web server
@@ -64,13 +65,6 @@ public:
     // Initialize status LED
     StatusLED::begin();
 
-    // Start WiFi connection (non-blocking)
-    WiFi.begin(ssid, password);
-    StatusLED::update(PortalConfig::Hardware::WiFiStatus::CONNECTING_STA, millis());
-
-    // Don't wait for connection - let it happen in the background
-    // The update() method will handle connection status and server startup
-
     // Initialize LittleFS filesystem for serving web assets (modern replacement for SPIFFS with better wear-leveling)
     if (!LittleFS.begin())
     {
@@ -81,39 +75,13 @@ public:
 
     Serial.println(F("LittleFS mounted successfully"));
 
-    // Set up web server routes
-    server_.on("/", [this]()
-               { handleRoot(); });
-    server_.on("/toggle", [this]()
-               { handleCommand(InputManager::Command::TogglePortal); });
-    server_.on("/malfunction", [this]()
-               { handleCommand(InputManager::Command::TriggerMalfunction); });
-    server_.on("/fadeout", [this]()
-               { handleCommand(InputManager::Command::FadeOut); });
-    server_.on("/status", [this]()
-               { handleStatus(); });
-    server_.on("/config", [this]()
-               { handleConfig(); });
-    server_.on("/set_speed", [this]()
-               { handleSetSpeed(); });
-    server_.on("/set_brightness", [this]()
-               { handleSetBrightness(); });
-    server_.on("/set_hue", [this]()
-               { handleSetHue(); });
-    server_.on("/set_mode", [this]()
-               { handleSetMode(); });
-    server_.on("/options", HTTP_OPTIONS, [this]()
-               {
-        server_.sendHeader("Access-Control-Allow-Origin", "*");
-        server_.sendHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-        server_.sendHeader("Access-Control-Allow-Headers", "*");
-        server_.send(200, "text/plain", ""); });
-    server_.onNotFound([this]()
-                       {
-        server_.sendHeader("Access-Control-Allow-Origin", "*");
-        server_.sendHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-        server_.sendHeader("Access-Control-Allow-Headers", "*");
-        server_.send(404, "text/plain", "Not Found"); });
+    // Start WiFi connection (non-blocking)
+    WiFi.begin(ssid, password);
+    connectionStartTime_ = millis();
+    StatusLED::update(PortalConfig::Hardware::WiFiStatus::CONNECTING_STA, millis());
+
+    // Set up web server routes for both STA and AP modes
+    setupWebServerRoutes();
 
     server_.begin();
 #endif
@@ -124,61 +92,15 @@ public:
   bool update(unsigned long currentTime) override
   {
 #ifndef UNIT_TEST
-    // Check WiFi connection status and start server if connected
-    if (!isConnected_)
+    // Check WiFi connection status and handle fallback to AP mode
+    if (!isConnected_ && !inAPMode_)
     {
       if (WiFi.status() == WL_CONNECTED)
       {
-        // WiFi connected - start the server
+        // WiFi connected successfully
         isConnected_ = true;
         StatusLED::update(PortalConfig::Hardware::WiFiStatus::STA_CONNECTED, currentTime);
 
-        // Initialize LittleFS filesystem for serving web assets
-        if (!LittleFS.begin())
-        {
-          Serial.println(F("LittleFS mount failed - check flash partitioning and available space"));
-          StatusLED::update(PortalConfig::Hardware::WiFiStatus::STARTED_NOT_CONNECTED, currentTime);
-          isConnected_ = false;
-          return hasEvents();
-        }
-
-        Serial.println(F("LittleFS mounted successfully"));
-
-        // Set up web server routes
-        server_.on("/", [this]()
-                   { handleRoot(); });
-        server_.on("/toggle", [this]()
-                   { handleCommand(InputManager::Command::TogglePortal); });
-        server_.on("/malfunction", [this]()
-                   { handleCommand(InputManager::Command::TriggerMalfunction); });
-        server_.on("/fadeout", [this]()
-                   { handleCommand(InputManager::Command::FadeOut); });
-        server_.on("/status", [this]()
-                   { handleStatus(); });
-        server_.on("/config", [this]()
-                   { handleConfig(); });
-        server_.on("/set_speed", [this]()
-                   { handleSetSpeed(); });
-        server_.on("/set_brightness", [this]()
-                   { handleSetBrightness(); });
-        server_.on("/set_hue", [this]()
-                   { handleSetHue(); });
-        server_.on("/set_mode", [this]()
-                   { handleSetMode(); });
-        server_.on("/options", HTTP_OPTIONS, [this]()
-                   {
-           server_.sendHeader("Access-Control-Allow-Origin", "*");
-           server_.sendHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-           server_.sendHeader("Access-Control-Allow-Headers", "*");
-           server_.send(200, "text/plain", ""); });
-        server_.onNotFound([this]()
-                           {
-           server_.sendHeader("Access-Control-Allow-Origin", "*");
-           server_.sendHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-           server_.sendHeader("Access-Control-Allow-Headers", "*");
-           server_.send(404, "text/plain", "Not Found"); });
-
-        server_.begin();
         Serial.print("WiFi connected! Web interface available at: http://");
         Serial.println(WiFi.localIP().toString().c_str());
         Serial.println("WiFi commands available:");
@@ -188,8 +110,42 @@ public:
       }
       else
       {
-        // Still connecting - update status LED
-        StatusLED::update(PortalConfig::Hardware::WiFiStatus::CONNECTING_STA, currentTime);
+        // Check for connection timeout
+        if (currentTime - connectionStartTime_ > PortalConfig::WiFi::WIFI_TIMEOUT_MS)
+        {
+          // Connection timed out - switch to AP mode
+          Serial.println("WiFi connection timeout - switching to AP mode");
+          switchToAPMode();
+        }
+        else
+        {
+          // Still connecting - update status LED
+          StatusLED::update(PortalConfig::Hardware::WiFiStatus::CONNECTING_STA, currentTime);
+        }
+      }
+    }
+    else if (inAPMode_)
+    {
+      // In AP mode - handle web server
+      if (!apServerStarted_)
+      {
+        startAPServer();
+      }
+
+      server_.handleClient();
+
+      // Check if there are any connected clients
+      int numClients = WiFi.softAPgetStationNum();
+      bool hasClients = numClients > 0;
+
+      // Update status LED based on AP mode and client status
+      if (hasClients)
+      {
+        StatusLED::update(PortalConfig::Hardware::WiFiStatus::AP_WITH_CLIENTS, currentTime);
+      }
+      else
+      {
+        StatusLED::update(PortalConfig::Hardware::WiFiStatus::AP_MODE, currentTime);
       }
     }
     else
@@ -255,6 +211,11 @@ public:
       static String ipStr = WiFi.localIP().toString();
       return ipStr.c_str();
     }
+    else if (inAPMode_)
+    {
+      static String apStr = WiFi.softAPIP().toString();
+      return apStr.c_str();
+    }
 #endif
     return "Not Connected";
   }
@@ -268,6 +229,54 @@ public:
     return isConnected_;
   }
 
+  /**
+   * @brief Check if device is in AP mode
+   * @return true if in AP mode
+   */
+  bool isInAPMode() const
+  {
+    return inAPMode_;
+  }
+
+  /**
+   * @brief Set up web server routes for both STA and AP modes
+   */
+  void setupWebServerRoutes()
+  {
+    server_.on("/", [this]()
+               { handleRoot(); });
+    server_.on("/toggle", [this]()
+               { handleCommand(InputManager::Command::TogglePortal); });
+    server_.on("/malfunction", [this]()
+               { handleCommand(InputManager::Command::TriggerMalfunction); });
+    server_.on("/fadeout", [this]()
+               { handleCommand(InputManager::Command::FadeOut); });
+    server_.on("/status", [this]()
+               { handleStatus(); });
+    server_.on("/config", [this]()
+               { handleConfig(); });
+    server_.on("/set_speed", [this]()
+               { handleSetSpeed(); });
+    server_.on("/set_brightness", [this]()
+               { handleSetBrightness(); });
+    server_.on("/set_hue", [this]()
+               { handleSetHue(); });
+    server_.on("/set_mode", [this]()
+               { handleSetMode(); });
+    server_.on("/options", HTTP_OPTIONS, [this]()
+               {
+         server_.sendHeader("Access-Control-Allow-Origin", "*");
+         server_.sendHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+         server_.sendHeader("Access-Control-Allow-Headers", "*");
+         server_.send(200, "text/plain", ""); });
+    server_.onNotFound([this]()
+                       {
+         server_.sendHeader("Access-Control-Allow-Origin", "*");
+         server_.sendHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+         server_.sendHeader("Access-Control-Allow-Headers", "*");
+         server_.send(404, "text/plain", "Not Found"); });
+  }
+
 private:
   static constexpr int MAX_EVENTS = 8;
 
@@ -276,6 +285,9 @@ private:
   int eventQueueHead_;
   int eventQueueTail_;
   bool isConnected_;
+  unsigned long connectionStartTime_;
+  bool inAPMode_;
+  bool apServerStarted_;
 
   /**
    * @brief Send CORS headers for all responses
@@ -473,6 +485,57 @@ private:
       sendCORSHeaders();
       server_.send(400, "text/plain", "Missing mode parameter");
     }
+  }
+
+  /**
+   * @brief Switch to Access Point mode when STA connection fails
+   */
+  void switchToAPMode()
+  {
+#ifndef UNIT_TEST
+    Serial.println("Switching to Access Point mode...");
+
+    // Disconnect from any existing WiFi
+    WiFi.disconnect();
+
+    // Set WiFi mode to AP
+    WiFi.mode(WIFI_AP);
+
+    // Start AP with configured SSID and password
+    WiFi.softAP(PortalConfig::WiFi::AP_NAME, PortalConfig::WiFi::AP_PASS);
+
+    Serial.print("AP mode started. SSID: ");
+    Serial.println(PortalConfig::WiFi::AP_NAME);
+    Serial.print("AP IP address: ");
+    Serial.println(WiFi.softAPIP().toString().c_str());
+
+    inAPMode_ = true;
+    StatusLED::update(PortalConfig::Hardware::WiFiStatus::AP_MODE, millis());
+#endif
+  }
+
+  /**
+   * @brief Start the web server in AP mode
+   */
+  void startAPServer()
+  {
+#ifndef UNIT_TEST
+    Serial.println("Starting AP web server...");
+
+    // Server is already configured in begin(), just need to ensure it's started
+    apServerStarted_ = true;
+
+    Serial.println("AP web server started");
+    Serial.print("Connect to WiFi network: ");
+    Serial.println(PortalConfig::WiFi::AP_NAME);
+    Serial.println("Then navigate to: http://192.168.4.1");
+    Serial.println("AP commands available:");
+    Serial.println("  http://192.168.4.1/toggle - Toggle portal effect");
+    Serial.println("  http://192.168.4.1/malfunction - Trigger malfunction");
+    Serial.println("  http://192.168.4.1/fadeout - Fade out effect");
+    Serial.println("  http://192.168.4.1/status - View status");
+    Serial.println("  http://192.168.4.1/config - View configuration");
+#endif
   }
 
   /**

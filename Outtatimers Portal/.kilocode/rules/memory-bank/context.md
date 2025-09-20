@@ -17,6 +17,7 @@
 - **Additive blending**: Modified virtual gradient effect to use additive color blending instead of brightness-based selection, creating brighter and more vibrant portal effects.
 - **Testing improvements**: Added comprehensive test for `generatePortalEffect()` in `test/test_portal_effect.cpp`.
 - **Build optimizations**: Fixed FastLED configuration warnings and type safety issues.
+- **WiFi fallback mechanism**: Implemented automatic AP mode fallback when STA connection fails, with 10-second timeout and captive portal for configuration.
 
 ## Next Steps
 
