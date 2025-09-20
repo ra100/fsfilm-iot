@@ -47,10 +47,12 @@ void generatePortalEffect(CRGB *effectLeds, DriverColorGenerator colorGen = null
 
 ### Virtual Gradient Implementation
 
-- Two counter-rotating sequences with independent lambda color generators
-- "1 color, 2 black" pattern creates visual breaks between gradients
-- Half-speed rotation for smoother wave effects
-- Brightness-based blending for dominant color selection
+- **Driver-based sequence generation**: Uses random driver spacing similar to `generateDriverColors()` function
+- **Sparse color pattern**: Only every 3rd driver LED gets color, others are black, creating "1 color, 2 black" breaks
+- **Gradient interpolation**: Calculates smooth gradients between driver LEDs using `interpolateColor()` function
+- **Dual counter-rotating sequences**: Two independent sequences with different hues rotating in opposite directions
+- **Additive color blending**: Combines both sequences additively for brighter, more vibrant effects
+- **Half-speed rotation**: Virtual gradients rotate at half speed for smoother wave effects
 
 ### Memory Management
 
@@ -83,10 +85,12 @@ main.cpp
 
 ### Virtual Gradient Pipeline
 
-1. Lambda color generators create "1 color, 2 black" patterns
-2. `generatePortalEffect()` builds CRGB sequences using function pointers
-3. Runtime rotation and brightness sampling from sequences
-4. Brightness-based blending for final output
+1. `generateVirtualGradients()` creates driver-based sequences with random spacing
+2. Driver LEDs placed at random distances using `minDist + random(maxDist - minDist + 1)`
+3. Only every 3rd driver gets color, others are black for "1 color, 2 black" pattern
+4. `interpolateColor()` calculates smooth gradients between driver LEDs
+5. Runtime rotation and LED value sampling from sequences
+6. Additive color blending combines both sequences for vibrant output
 
 ### Configuration Flow
 

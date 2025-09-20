@@ -218,37 +218,72 @@ public:
     uint8_t hue1 = ConfigManager::getHueMin();
     uint8_t hue2 = ConfigManager::getHueMax();
 
-    // Generate sequence 1: 1 color, 2 black pattern
-    for (int i = 0; i < PortalConfig::Hardware::NUM_LEDS; i++)
+    // Generate sequence 1 using driver-based approach
+    generateVirtualSequence(sequence1, hue1);
+
+    // Generate sequence 2 using driver-based approach with different hue
+    generateVirtualSequence(sequence2, hue2);
+
+    sequenceInitialized = true;
+  }
+
+  void generateVirtualSequence(CRGB *sequence, uint8_t hue)
+  {
+    const int minDist = PortalConfig::Effects::MIN_DRIVER_DISTANCE;
+    const int maxDist = PortalConfig::Effects::MAX_DRIVER_DISTANCE;
+
+    // Create driver positions at random distances
+    int driverIndices[PortalConfig::Hardware::NUM_LEDS / minDist + 2]; // Conservative size
+    CRGB driverColors[PortalConfig::Hardware::NUM_LEDS / minDist + 2];
+    int numDrivers = 0;
+    int idx = 0;
+
+    while (idx < PortalConfig::Hardware::NUM_LEDS - minDist && numDrivers < PortalConfig::Hardware::NUM_LEDS / minDist)
     {
-      if (i % 3 == 0) // Every 3rd LED gets color
+      driverIndices[numDrivers] = idx;
+
+      // Only every 3rd driver gets color, others are black
+      if (numDrivers % 3 == 0)
       {
         uint8_t sat = PortalConfig::Effects::PORTAL_SAT_BASE + random(PortalConfig::Effects::PORTAL_SAT_RANGE);
         uint8_t val = PortalConfig::Effects::PORTAL_VAL_BASE + random(PortalConfig::Effects::PORTAL_VAL_RANGE);
-        sequence1[i] = CHSV(hue1, sat, val);
+        driverColors[numDrivers] = CHSV(hue, sat, val);
       }
       else
       {
-        sequence1[i] = CRGB(0, 0, 0); // Black for breaks
+        driverColors[numDrivers] = CRGB(0, 0, 0); // Black for breaks
       }
+
+      numDrivers++;
+      int step = minDist + random(maxDist - minDist + 1);
+      if (idx + step > PortalConfig::Hardware::NUM_LEDS - minDist)
+        break;
+      idx += step;
     }
 
-    // Generate sequence 2: 1 color, 2 black pattern with different hue
-    for (int i = 0; i < PortalConfig::Hardware::NUM_LEDS; i++)
+    // Close the loop
+    driverIndices[numDrivers] = PortalConfig::Hardware::NUM_LEDS;
+    driverColors[numDrivers] = driverColors[0];
+    numDrivers++;
+
+    // Calculate gradients between drivers
+    for (int d = 0; d < numDrivers - 1; d++)
     {
-      // if (i % 3 == 0) // Every 3rd LED gets color
-      // {
-      //   uint8_t sat = PortalConfig::Effects::PORTAL_SAT_BASE + random(PortalConfig::Effects::PORTAL_SAT_RANGE);
-      //   uint8_t val = PortalConfig::Effects::PORTAL_VAL_BASE + random(PortalConfig::Effects::PORTAL_VAL_RANGE);
-      //   sequence2[i] = CHSV(hue2, sat, val);
-      // }
-      // else
+      int start = driverIndices[d];
+      int end = driverIndices[d + 1];
+      CRGB c1 = driverColors[d];
+      CRGB c2 = driverColors[d + 1];
+      int segLen = end - start;
+
+      for (int i = 0; i < segLen; i++)
       {
-        sequence2[i] = CRGB(0, 0, 0); // Black for breaks
+        float ratio = (segLen == 1) ? 0.0f : (float)i / (segLen - 1);
+        CRGB col = interpolateColor(c1, c2, ratio);
+        int pos = start + i;
+        if (pos >= 0 && pos < PortalConfig::Hardware::NUM_LEDS)
+          sequence[pos] = col;
       }
     }
-
-    sequenceInitialized = true;
   }
 
   CRGB getRandomDriverColorInternal()

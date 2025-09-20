@@ -12,6 +12,8 @@
 - **Virtual gradient sequences**: Implemented sparse driver pattern with "1 color, 2 black" sequence for creating breaks between color gradients.
 - **Improved blending logic**: Updated to take whole LED value from sequence with higher brightness for better visual effect.
 - **Enhanced rotation system**: Virtual gradients rotate at half speed with counter-rotating sequences for wave effect.
+- **Driver-based virtual gradients**: Refactored `generateVirtualGradients()` to use driver-based approach similar to `generateDriverColors()`, creating more sophisticated gradient patterns with random driver spacing and proper gradient interpolation.
+- **Additive blending**: Modified virtual gradient effect to use additive color blending instead of brightness-based selection, creating brighter and more vibrant portal effects.
 - **Testing improvements**: Added comprehensive test for `generatePortalEffect()` in `test/test_portal_effect.cpp`.
 - **Build optimizations**: Fixed FastLED configuration warnings and type safety issues.
 
