@@ -33,3 +33,23 @@
 - **Configuration**: wifi_credentials.h (git-ignored) for SSID/password.
 - **Build Flags**: -DUNIT_TEST for host compilation, disabling FastLED.
 - **Scripts**: run_tests.sh for executing tests, setup_wifi.sh for credentials.
+
+## Git Commit Conventions
+
+- **Gitmoji Usage**: When creating commit messages, always use appropriate Gitmoji emojis to categorize commits:
+  - ✨ `:sparkles:` - New features or enhancements
+  - 🐛 `:bug:` - Bug fixes
+  - 📝 `:memo:` - Documentation updates
+  - ♻️ `:recycle:` - Refactoring or code improvements
+  - 🧪 `:test_tube:` - Adding or updating tests
+  - 🔧 `:wrench:` - Configuration changes or build system updates
+  - 🎨 `:art:` - Code style improvements or formatting
+  - 🚀 `:rocket:` - Performance improvements
+  - 📦 `:package:` - Dependency updates
+  - 🔒 `:lock:` - Security improvements
+- **Commit Format**: Use conventional commits format with Gitmoji: `emoji scope: description`
+- **Examples**:
+  - ✨ feat: add new portal effect mode
+  - 🐛 fix: resolve LED flickering issue
+  - 📝 docs: update architecture documentation
+  - ♻️ refactor: improve effect generation performance
