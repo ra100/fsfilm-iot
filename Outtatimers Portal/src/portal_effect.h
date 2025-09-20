@@ -205,24 +205,31 @@ public:
   CRGB sequence1[PortalConfig::Hardware::NUM_LEDS];
   CRGB sequence2[PortalConfig::Hardware::NUM_LEDS];
   bool sequenceInitialized;
+  uint8_t lastHueMin; // Track hue values to detect changes
+  uint8_t lastHueMax;
 
   void generateVirtualGradients()
   {
     // Generate and seed virtual gradient sequences used by virtualGradientEffect
-    if (sequenceInitialized)
+    uint8_t currentHueMin = ConfigManager::getHueMin();
+    uint8_t currentHueMax = ConfigManager::getHueMax();
+
+    // Check if hue values have changed since last generation
+    if (sequenceInitialized && currentHueMin == lastHueMin && currentHueMax == lastHueMax)
       return;
 
-    // Seed random once
+    // Update tracked hue values
+    lastHueMin = currentHueMin;
+    lastHueMax = currentHueMax;
+
+    // Seed random once per regeneration cycle
     randomSeed(millis());
 
-    uint8_t hue1 = ConfigManager::getHueMin();
-    uint8_t hue2 = ConfigManager::getHueMax();
-
     // Generate sequence 1 using driver-based approach
-    generateVirtualSequence(sequence1, hue1);
+    generateVirtualSequence(sequence1, currentHueMin);
 
     // Generate sequence 2 using driver-based approach with different hue
-    generateVirtualSequence(sequence2, hue2);
+    generateVirtualSequence(sequence2, currentHueMax);
 
     sequenceInitialized = true;
   }
