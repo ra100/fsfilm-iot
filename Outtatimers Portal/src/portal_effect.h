@@ -157,8 +157,8 @@ public:
         {
           // Move at half speed for virtual gradient effect
           // Ensure balanced speeds for wave effect
-          gradientPos1 = (gradientPos1 + speed / 2) % NUM_LEDS;
-          gradientPos2 = (gradientPos2 - speed / 2 + NUM_LEDS) % NUM_LEDS;
+          gradientPos1 = (gradientPos1 + speed) % NUM_LEDS;
+          gradientPos2 = (gradientPos2 - speed + NUM_LEDS) % NUM_LEDS;
         }
 
         if (fadeOutActive || animationActive)
