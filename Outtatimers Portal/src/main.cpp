@@ -118,21 +118,16 @@ void setup()
   inputManager.addInputSource(&buttonInput);
 
 #if ENABLE_WIFI_CONTROL
-  // Initialize WiFi input source
-  if (wifiInput.begin(PortalConfig::WiFi::DEFAULT_SSID, PortalConfig::WiFi::DEFAULT_PASSWORD))
-  {
-    inputManager.addInputSource(&wifiInput);
-    Serial.print("WiFi connected! Web interface available at: http://");
-    Serial.println(wifiInput.getIPAddress());
-    Serial.println("WiFi commands available:");
-    Serial.println("  http://[ip]/toggle - Toggle portal effect");
-    Serial.println("  http://[ip]/malfunction - Trigger malfunction");
-    Serial.println("  http://[ip]/fadeout - Fade out effect");
-  }
-  else
-  {
-    Serial.println("WiFi connection failed - continuing with buttons only");
-  }
+  // Initialize WiFi input source (non-blocking)
+  wifiInput.begin(PortalConfig::WiFi::DEFAULT_SSID, PortalConfig::WiFi::DEFAULT_PASSWORD);
+  inputManager.addInputSource(&wifiInput);
+  Serial.println("WiFi input source initialized - attempting connection in background");
+  Serial.println("WiFi commands available:");
+  Serial.println("  http://[ip]/toggle - Toggle portal effect");
+  Serial.println("  http://[ip]/malfunction - Trigger malfunction");
+  Serial.println("  http://[ip]/fadeout - Fade out effect");
+  Serial.println("  http://[ip]/status - View status");
+  Serial.println("  http://[ip]/config - View configuration");
 #endif
 
   inputManager.setInputCallback(handleInputCommand);

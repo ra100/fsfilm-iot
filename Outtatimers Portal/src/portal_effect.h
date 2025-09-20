@@ -473,7 +473,7 @@ public:
         dist = PortalConfig::Hardware::NUM_LEDS - dist;
       }
 
-      float ratio = (float)(ledIndex - pos + PortalConfig::Hardware::NUM_LEDS) % PortalConfig::Hardware::NUM_LEDS / dist;
+      float ratio = (float)((ledIndex - pos + PortalConfig::Hardware::NUM_LEDS) % PortalConfig::Hardware::NUM_LEDS) / dist;
       bright = (uint8_t)(sequence[pos].b * (1.0f - ratio) + sequence[nextDriver].b * ratio);
     }
 

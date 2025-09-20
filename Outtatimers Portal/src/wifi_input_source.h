@@ -64,28 +64,12 @@ public:
     // Initialize status LED
     StatusLED::begin();
 
-    // Start WiFi connection
+    // Start WiFi connection (non-blocking)
     WiFi.begin(ssid, password);
     StatusLED::update(PortalConfig::Hardware::WiFiStatus::CONNECTING_STA, millis());
 
-    // Wait for connection (with timeout)
-    int attempts = 0;
-    while (WiFi.status() != WL_CONNECTED && attempts < 20)
-    {
-      delay(500);
-      attempts++;
-      // Update status LED during connection attempts
-      StatusLED::update(PortalConfig::Hardware::WiFiStatus::CONNECTING_STA, millis());
-    }
-
-    if (WiFi.status() != WL_CONNECTED)
-    {
-      StatusLED::update(PortalConfig::Hardware::WiFiStatus::STARTED_NOT_CONNECTED, millis());
-      return false;
-    }
-
-    isConnected_ = true;
-    StatusLED::update(PortalConfig::Hardware::WiFiStatus::STA_CONNECTED, millis());
+    // Don't wait for connection - let it happen in the background
+    // The update() method will handle connection status and server startup
 
     // Initialize LittleFS filesystem for serving web assets (modern replacement for SPIFFS with better wear-leveling)
     if (!LittleFS.begin())
@@ -140,8 +124,77 @@ public:
   bool update(unsigned long currentTime) override
   {
 #ifndef UNIT_TEST
-    if (isConnected_)
+    // Check WiFi connection status and start server if connected
+    if (!isConnected_)
     {
+      if (WiFi.status() == WL_CONNECTED)
+      {
+        // WiFi connected - start the server
+        isConnected_ = true;
+        StatusLED::update(PortalConfig::Hardware::WiFiStatus::STA_CONNECTED, currentTime);
+
+        // Initialize LittleFS filesystem for serving web assets
+        if (!LittleFS.begin())
+        {
+          Serial.println(F("LittleFS mount failed - check flash partitioning and available space"));
+          StatusLED::update(PortalConfig::Hardware::WiFiStatus::STARTED_NOT_CONNECTED, currentTime);
+          isConnected_ = false;
+          return hasEvents();
+        }
+
+        Serial.println(F("LittleFS mounted successfully"));
+
+        // Set up web server routes
+        server_.on("/", [this]()
+                   { handleRoot(); });
+        server_.on("/toggle", [this]()
+                   { handleCommand(InputManager::Command::TogglePortal); });
+        server_.on("/malfunction", [this]()
+                   { handleCommand(InputManager::Command::TriggerMalfunction); });
+        server_.on("/fadeout", [this]()
+                   { handleCommand(InputManager::Command::FadeOut); });
+        server_.on("/status", [this]()
+                   { handleStatus(); });
+        server_.on("/config", [this]()
+                   { handleConfig(); });
+        server_.on("/set_speed", [this]()
+                   { handleSetSpeed(); });
+        server_.on("/set_brightness", [this]()
+                   { handleSetBrightness(); });
+        server_.on("/set_hue", [this]()
+                   { handleSetHue(); });
+        server_.on("/set_mode", [this]()
+                   { handleSetMode(); });
+        server_.on("/options", HTTP_OPTIONS, [this]()
+                   {
+           server_.sendHeader("Access-Control-Allow-Origin", "*");
+           server_.sendHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+           server_.sendHeader("Access-Control-Allow-Headers", "*");
+           server_.send(200, "text/plain", ""); });
+        server_.onNotFound([this]()
+                           {
+           server_.sendHeader("Access-Control-Allow-Origin", "*");
+           server_.sendHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+           server_.sendHeader("Access-Control-Allow-Headers", "*");
+           server_.send(404, "text/plain", "Not Found"); });
+
+        server_.begin();
+        Serial.print("WiFi connected! Web interface available at: http://");
+        Serial.println(WiFi.localIP().toString().c_str());
+        Serial.println("WiFi commands available:");
+        Serial.println("  http://[ip]/toggle - Toggle portal effect");
+        Serial.println("  http://[ip]/malfunction - Trigger malfunction");
+        Serial.println("  http://[ip]/fadeout - Fade out effect");
+      }
+      else
+      {
+        // Still connecting - update status LED
+        StatusLED::update(PortalConfig::Hardware::WiFiStatus::CONNECTING_STA, currentTime);
+      }
+    }
+    else
+    {
+      // WiFi is connected - handle web server
       server_.handleClient();
 
       // Check if there are any connected clients (stations)
