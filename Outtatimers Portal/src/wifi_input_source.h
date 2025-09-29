@@ -261,6 +261,8 @@ public:
                { handleSetBrightness(); });
     server_.on("/set_hue", [this]()
                { handleSetHue(); });
+    server_.on("/set_saturation", [this]()
+               { handleSetSaturation(); });
     server_.on("/set_mode", [this]()
                { handleSetMode(); });
     server_.on("/options", HTTP_OPTIONS, [this]()
@@ -379,6 +381,7 @@ private:
     status += "  /set_speed?speed=0-10 - Set rotation speed\n";
     status += "  /set_brightness?brightness=0-255 - Set max brightness\n";
     status += "  /set_hue?min=0-255&max=0-255 - Set color hue range\n";
+    status += "  /set_saturation?min=0-255&max=0-255 - Set color saturation range\n";
 
     sendCORSHeaders();
     server_.send(200, "text/plain", status);
@@ -394,6 +397,8 @@ private:
     json += "\"brightness\":" + String(ConfigManager::getMaxBrightness()) + ",";
     json += "\"hueMin\":" + String(ConfigManager::getHueMin()) + ",";
     json += "\"hueMax\":" + String(ConfigManager::getHueMax()) + ",";
+    json += "\"satMin\":" + String(ConfigManager::getSatMin()) + ",";
+    json += "\"satMax\":" + String(ConfigManager::getSatMax()) + ",";
     json += "\"mode\":" + String(ConfigManager::getPortalMode());
     json += "}";
 
@@ -453,6 +458,28 @@ private:
       ConfigManager::setHueMin(minHue);
       ConfigManager::setHueMax(maxHue);
       String response = "Color hue range set to: " + String(minHue) + " - " + String(maxHue) + " (0-255)";
+      sendCORSHeaders();
+      server_.send(200, "text/plain", response);
+    }
+    else
+    {
+      sendCORSHeaders();
+      server_.send(400, "text/plain", "Missing min or max parameter");
+    }
+  }
+
+  /**
+   * @brief Handle set saturation range request
+   */
+  void handleSetSaturation()
+  {
+    if (server_.hasArg("min") && server_.hasArg("max"))
+    {
+      int minSat = server_.arg("min").toInt();
+      int maxSat = server_.arg("max").toInt();
+      ConfigManager::setSatMin(minSat);
+      ConfigManager::setSatMax(maxSat);
+      String response = "Color saturation range set to: " + String(minSat) + " - " + String(maxSat) + " (0-255)";
       sendCORSHeaders();
       server_.send(200, "text/plain", response);
     }

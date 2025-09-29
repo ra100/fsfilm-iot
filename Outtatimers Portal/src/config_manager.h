@@ -22,6 +22,8 @@ public:
     maxBrightness = 255; // Default max brightness
     hueMin = 160;        // Default minimum hue (blue)
     hueMax = 200;        // Default maximum hue (purple)
+    satMin = 128;        // Default minimum saturation
+    satMax = 255;        // Default maximum saturation
     portalMode = 0;      // Default to classic mode
     effectNeedsRegeneration = false;
   }
@@ -101,6 +103,44 @@ public:
   }
 
   /**
+   * @brief Get the minimum saturation value
+   * @return Minimum saturation (0-255)
+   */
+  static uint8_t getSatMin()
+  {
+    return satMin;
+  }
+
+  /**
+   * @brief Set the minimum saturation value
+   * @param minSat Minimum saturation (0-255)
+   */
+  static void setSatMin(uint8_t minSat)
+  {
+    satMin = constrain(minSat, 0, 255);
+    effectNeedsRegeneration = true;
+  }
+
+  /**
+   * @brief Get the maximum saturation value
+   * @return Maximum saturation (0-255)
+   */
+  static uint8_t getSatMax()
+  {
+    return satMax;
+  }
+
+  /**
+   * @brief Set the maximum saturation value
+   * @param maxSat Maximum saturation (0-255)
+   */
+  static void setSatMax(uint8_t maxSat)
+  {
+    satMax = constrain(maxSat, 0, 255);
+    effectNeedsRegeneration = true;
+  }
+
+  /**
    * @brief Check if effect regeneration is needed
    * @return true if regeneration is required
    */
@@ -141,6 +181,8 @@ private:
   static uint8_t maxBrightness;
   static uint8_t hueMin;
   static uint8_t hueMax;
+  static uint8_t satMin;
+  static uint8_t satMax;
   static bool effectNeedsRegeneration;
   static int portalMode;
 };

@@ -208,6 +208,20 @@
                 </div>
 
                 <canvas id="hue-gradient" class="hue-gradient"></canvas>
+
+                <div class="form-group">
+                    <label for="sat-min">Color Saturation Min (0-255):</label>
+                    <input type="range" id="sat-min" min="0" max="255" value="128" class="range-slider" oninput="updateValue('sat-min', this.value); updateSaturationGradient();" onmouseup="setSaturationRangeOnChange()">
+                    <span id="sat-min-value" class="range-value">128</span>
+                </div>
+
+                <div class="form-group">
+                    <label for="sat-max">Color Saturation Max (0-255):</label>
+                    <input type="range" id="sat-max" min="0" max="255" value="255" class="range-slider" oninput="updateValue('sat-max', this.value); updateSaturationGradient();" onmouseup="setSaturationRangeOnChange()">
+                    <span id="sat-max-value" class="range-value">255</span>
+                </div>
+
+                <canvas id="saturation-gradient" class="hue-gradient"></canvas>
             </div>
         </div>
 
@@ -231,6 +245,8 @@
         let baseURL = window.location.origin; // Default to current origin (device)
         let hueCanvas = document.getElementById('hue-gradient');
         let hueCtx = hueCanvas.getContext('2d');
+        let saturationCanvas = document.getElementById('saturation-gradient');
+        let saturationCtx = saturationCanvas.getContext('2d');
 
         // Load saved server from localStorage
         const savedIP = localStorage.getItem('deviceIP') || '';
@@ -252,6 +268,7 @@
                 document.getElementById('server-status').textContent = 'Using custom server: http://' + ip + ':80';
                 showMessage('Server set to ' + ip + ' - Loading config...');
                 fetchConfig(); // Load config from new server
+                updateSaturationGradient(); // Update gradient after server change
             } else {
                 localStorage.removeItem('deviceIP');
                 baseURL = window.location.origin;
@@ -262,6 +279,7 @@
                 }
                 showMessage('Using default server');
                 fetchConfig(); // Reload config
+                updateSaturationGradient(); // Update saturation gradient after server change
             }
             updateHueGradient(); // Update gradient after server change
         }
@@ -371,11 +389,77 @@
             }
         }
 
+        function updateSaturationGradient() {
+            const minSat = parseInt(document.getElementById('sat-min').value);
+            const maxSat = parseInt(document.getElementById('sat-max').value);
+            const fixedHue = 180; // Use a fixed hue (cyan) for saturation demonstration
+            saturationCanvas.width = saturationCanvas.offsetWidth;
+            const width = saturationCanvas.width;
+            const height = saturationCanvas.height;
+            saturationCtx.clearRect(0, 0, width, height);
+
+            const numSteps = width;
+            const stepSize = 1 / numSteps;
+
+            if (minSat <= maxSat) {
+                // Non-wrapping: direct linear interpolation
+                for (let x = 0; x < width; x++) {
+                    const ratio = x / (width - 1);
+                    const saturation = minSat + (maxSat - minSat) * ratio;
+                    const { r, g, b } = hsvToRgb(fixedHue, saturation, 100);
+                    saturationCtx.fillStyle = rgbToHex(r, g, b);
+                    saturationCtx.fillRect(x, 0, 1, height);
+                }
+            } else {
+                // Wrapping: split into two segments (min to 255, then 0 to max)
+                const totalLength = (255 - minSat) + (maxSat + 1); // Saturation range length
+                let x = 0;
+
+                // First segment: minSat to 255
+                const firstLen = 255 - minSat;
+                const firstSteps = Math.floor((width * firstLen) / totalLength);
+                for (let i = 0; i < firstSteps; i++) {
+                    const ratio = i / (firstSteps - 1);
+                    const saturation = minSat + (firstLen * ratio);
+                    const { r, g, b } = hsvToRgb(fixedHue, saturation, 100);
+                    saturationCtx.fillStyle = rgbToHex(r, g, b);
+                    saturationCtx.fillRect(x, 0, 1, height);
+                    x++;
+                }
+
+                // Second segment: 0 to maxSat
+                const secondLen = maxSat + 1;
+                const secondSteps = width - firstSteps;
+                for (let i = 0; i < secondSteps; i++) {
+                    const ratio = i / (secondSteps - 1);
+                    const saturation = 0 + (secondLen * ratio);
+                    const { r, g, b } = hsvToRgb(fixedHue, saturation, 100);
+                    saturationCtx.fillStyle = rgbToHex(r, g, b);
+                    saturationCtx.fillRect(x, 0, 1, height);
+                    x++;
+                }
+            }
+        }
+
         function setHueRangeOnChange() {
             const min = document.getElementById('hue-min').value;
             const max = document.getElementById('hue-max').value;
 
             fetch(baseURL + '/set_hue?min=' + min + '&max=' + max)
+                .then(response => response.text())
+                .then(data => {
+                    showMessage(data);
+                })
+                .catch(error => {
+                    showMessage('Error: ' + error, true);
+                });
+        }
+
+        function setSaturationRangeOnChange() {
+            const min = document.getElementById('sat-min').value;
+            const max = document.getElementById('sat-max').value;
+
+            fetch(baseURL + '/set_saturation?min=' + min + '&max=' + max)
                 .then(response => response.text())
                 .then(data => {
                     showMessage(data);
@@ -414,6 +498,8 @@
                 endpoint = 'set_brightness?brightness=' + value;
             } else if (param === 'mode') {
                 endpoint = 'set_mode?mode=' + value;
+            } else if (param === 'saturation') {
+                endpoint = 'set_saturation?min=' + document.getElementById('sat-min').value + '&max=' + document.getElementById('sat-max').value;
             }
 
             if (endpoint) {
@@ -429,6 +515,11 @@
                             document.getElementById('brightness-value').textContent = value;
                         } else if (param === 'mode') {
                             document.getElementById('mode').value = value;
+                        } else if (param === 'saturation') {
+                            document.getElementById('sat-min').value = document.getElementById('sat-min').value;
+                            document.getElementById('sat-min-value').textContent = document.getElementById('sat-min').value;
+                            document.getElementById('sat-max').value = document.getElementById('sat-max').value;
+                            document.getElementById('sat-max-value').textContent = document.getElementById('sat-max').value;
                         }
                     })
                     .catch(error => {
@@ -460,8 +551,13 @@
                     document.getElementById('hue-min-value').textContent = data.hueMin;
                     document.getElementById('hue-max').value = data.hueMax;
                     document.getElementById('hue-max-value').textContent = data.hueMax;
+                    document.getElementById('sat-min').value = data.satMin;
+                    document.getElementById('sat-min-value').textContent = data.satMin;
+                    document.getElementById('sat-max').value = data.satMax;
+                    document.getElementById('sat-max-value').textContent = data.satMax;
                     document.getElementById('mode').value = data.mode;
                     updateHueGradient();
+                    updateSaturationGradient();
                 })
                 .catch(error => {
                     console.error('Error loading config:', error);
@@ -471,6 +567,7 @@
 
         // Initialize
         updateHueGradient();
+        updateSaturationGradient();
         fetchConfig();
     </script>
 </body>

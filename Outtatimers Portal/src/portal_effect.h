@@ -207,20 +207,37 @@ public:
   bool sequenceInitialized;
   uint8_t lastHueMin; // Track hue values to detect changes
   uint8_t lastHueMax;
+  uint8_t lastSatMin; // Track saturation values to detect changes
+  uint8_t lastSatMax;
 
   void generateVirtualGradients()
   {
     // Generate and seed virtual gradient sequences used by virtualGradientEffect
     uint8_t currentHueMin = ConfigManager::getHueMin();
     uint8_t currentHueMax = ConfigManager::getHueMax();
+    uint8_t currentSatMin = ConfigManager::getSatMin();
+    uint8_t currentSatMax = ConfigManager::getSatMax();
 
-    // Check if hue values have changed since last generation
-    if (sequenceInitialized && currentHueMin == lastHueMin && currentHueMax == lastHueMax)
+    // Check if hue or saturation values have changed since last generation
+    if (sequenceInitialized && currentHueMin == lastHueMin && currentHueMax == lastHueMax &&
+        currentSatMin == lastSatMin && currentSatMax == lastSatMax)
+    {
+      Serial.println("Virtual gradient: No changes detected, skipping regeneration");
       return;
+    }
 
-    // Update tracked hue values
+    Serial.print("Virtual gradient: Regenerating sequences - ");
+    if (currentHueMin != lastHueMin || currentHueMax != lastHueMax)
+      Serial.print("hue changed ");
+    if (currentSatMin != lastSatMin || currentSatMax != lastSatMax)
+      Serial.print("saturation changed ");
+    Serial.println();
+
+    // Update tracked values
     lastHueMin = currentHueMin;
     lastHueMax = currentHueMax;
+    lastSatMin = currentSatMin;
+    lastSatMax = currentSatMax;
 
     // Seed random once per regeneration cycle
     randomSeed(millis());
@@ -276,7 +293,10 @@ public:
           }
         }
 
-        uint8_t sat = PortalConfig::Effects::PORTAL_SAT_BASE + random(PortalConfig::Effects::PORTAL_SAT_RANGE);
+        uint8_t satMin = ConfigManager::getSatMin();
+        uint8_t satMax = ConfigManager::getSatMax();
+        uint8_t satRange = satMax - satMin;
+        uint8_t sat = satMin + random(satRange + 1);
         uint8_t val = PortalConfig::Effects::PORTAL_VAL_BASE + random(PortalConfig::Effects::PORTAL_VAL_RANGE);
         driverColors[numDrivers] = CHSV(randomHue, sat, val);
       }
@@ -334,9 +354,12 @@ public:
     uint8_t offset = random(length);
     uint8_t hue = (hueMin + offset) % 256;
 
-    uint8_t sat = PortalConfig::Effects::PORTAL_SAT_BASE + random(PortalConfig::Effects::PORTAL_SAT_RANGE);
-    if (random(PortalConfig::Effects::PORTAL_LOW_SAT_PROBABILITY) == 0)
-      sat = PortalConfig::Effects::PORTAL_SAT_LOW_BASE + random(PortalConfig::Effects::PORTAL_SAT_LOW_RANGE);
+    uint8_t satMin = ConfigManager::getSatMin();
+    uint8_t satMax = ConfigManager::getSatMax();
+    uint8_t satRange = satMax - satMin;
+    uint8_t sat = satMin + random(satRange + 1);
+    if (random(10) == 0)    // 1 in 10 chance for low saturation
+      sat = 0 + random(50); // Low saturation range
     uint8_t val = PortalConfig::Effects::PORTAL_VAL_BASE + random(PortalConfig::Effects::PORTAL_VAL_RANGE);
     return CHSV(hue, sat, val);
   }
@@ -373,7 +396,7 @@ public:
         else
         {
           driverColors[i] = CHSV(hue,
-                                 PortalConfig::Effects::PORTAL_SAT_BASE + random(PortalConfig::Effects::PORTAL_SAT_RANGE),
+                                 ConfigManager::getSatMin() + random(ConfigManager::getSatMax() - ConfigManager::getSatMin() + 1),
                                  PortalConfig::Effects::PORTAL_VAL_BASE + random(PortalConfig::Effects::PORTAL_VAL_RANGE));
         }
       }
@@ -433,7 +456,9 @@ public:
   {
     if (driverIndex % 3 == 0) // 1 color, 2 black pattern
     {
-      uint8_t sat = PortalConfig::Effects::PORTAL_SAT_BASE + random(PortalConfig::Effects::PORTAL_SAT_RANGE);
+      uint8_t satMin = ConfigManager::getSatMin();
+      uint8_t satMax = ConfigManager::getSatMax();
+      uint8_t sat = satMin + random(satMax - satMin + 1);
       uint8_t val = PortalConfig::Effects::PORTAL_VAL_BASE + random(PortalConfig::Effects::PORTAL_VAL_RANGE);
       return CHSV(hue, sat, val);
     }

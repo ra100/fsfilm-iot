@@ -15,6 +15,8 @@ upload-all: upload uploadfs
 
 test:
 	./run_tests.sh
+	@echo "Running JavaScript tests..."
+	node test/*.test.js
 
 clean:
 	pio run --target clean -e d1
