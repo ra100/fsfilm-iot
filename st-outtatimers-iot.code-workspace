@@ -1,17 +1,21 @@
 {
   "folders": [
-	{
-		"path": "."
-	},
-	{
-		"name": "Outtatimers Implant",
-		"path": "Outtatimers Implant"
-	},
-	{
-		"name": "Outtatimers Portal",
-		"path": "Outtatimers Portal"
-	}
-],
+		{
+			"path": "."
+		},
+		{
+			"name": "Outtatimers Implant",
+			"path": "Outtatimers Implant"
+		},
+		{
+			"name": "Outtatimers Portal",
+			"path": "Outtatimers Portal"
+		},
+		{
+			"name": "Outtatimers Controller",
+			"path": "Outtatimers Controller"
+		}
+	],
 	"settings": {
 		"files.associations": {
 			"*.embeddedhtml": "html",

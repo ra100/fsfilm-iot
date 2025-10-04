@@ -1,0 +1,1 @@
+IoT device powered by Arduino on ESP8266 or ESP32 using NeoPixel 8, one standalone RGB LED and 2 buttons to create and effect scifi controller that has hexagonal shape (neopixel 8 using just 6 LEDs with one LED in the middle) controlled by 2 buttons to switch between different effects.
