@@ -2,14 +2,13 @@
 
 ## System Architecture
 
-The Outtatimers Controller is a standalone IoT device built on the ESP8266 microcontroller, designed to control LED lighting effects through physical buttons and display them on a hexagonal NeoPixel arrangement.
+The Outtatimers Controller is a standalone IoT device built on the ESP8266 microcontroller, designed to control LED lighting effects through physical buttons and display them on a linear LED strip using the first 9 LEDs.
 
 ## Hardware Architecture
 
 - **Microcontroller**: ESP8266 (Wemos D1 board) for Wi-Fi capability and processing
-- **LED Array**: NeoPixel 8 ring with 7 LEDs (6 outer + 1 center) for effect display
-- **Status LED**: Single RGB LED for additional status indication
-- **Input Devices**: Two physical buttons for effect selection and control
+- **LED Array**: Standard LED strip using first 9 LEDs (D2 pin) for linear effect display
+- **Input Devices**: Two physical buttons on D5 (effect cycling) and D6 (intensity modification) for effect selection and control
 - **Power Management**: USB or battery power for standalone operation
 
 ## Software Architecture
@@ -52,5 +51,6 @@ ButtonHandler → EffectManager → LedController → FastLED
 - **ESP8266 over ESP32**: Sufficient performance with lower power consumption
 - **FastLED Library**: Rich feature set for complex LED animations
 - **PlatformIO**: Better dependency management than Arduino IDE
-- **C++ Classes**: Improved code organization over procedural approach
-- **Hexagonal Layout**: Sci-fi aesthetic with efficient LED usage (7/8 pixels)
+- **C++ Procedural Approach**: Efficient implementation for embedded constraints
+- **Linear LED Strip**: Practical hardware choice using first 9 LEDs for effects
+- **Button Pin Configuration**: D5 for effect cycling, D6 for intensity modification

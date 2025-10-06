@@ -26,10 +26,11 @@
 
 ## Dependencies
 
-- **FastLED v3.10.2**: Core library for NeoPixel control and LED effects
+- **FastLED v3.10.2**: Core library for LED strip control and lighting effects
   - Provides advanced color management and animation functions
-  - Optimized for ESP8266 performance
+  - Optimized for ESP8266 performance with linear LED strip
   - Supports various LED chipsets including WS2812B
+  - Enables 6 distinct lighting effects adapted for linear arrangement
 
 ## Tool Usage Patterns
 
@@ -38,6 +39,14 @@
 - **Debugging**: Serial monitor for runtime debugging and LED status feedback
 - **Version Control**: Git for source code management and collaboration
 - **Deployment**: OTA updates via Wi-Fi for remote firmware updates (planned)
+
+## Current Implementation Details
+
+- **Hardware Configuration**: D2 for LED strip data, D5/D6 for button inputs with pull-up resistors
+- **LED Setup**: 9 LEDs from standard strip, utilizing FastLED NEOPIXEL driver
+- **Button Handling**: Debounced inputs with 200ms delay for reliable operation
+- **Effect System**: 6 distinct lighting effects with smooth transitions and visual feedback
+- **Brightness Control**: 4-level intensity adjustment (0, 64, 128, 192) with visual confirmation
 
 ## Performance Considerations
 

@@ -14,7 +14,7 @@ This project creates a physical sci-fi controller for LED lighting effects, prov
 
 ## How It Should Work
 
-The controller uses two buttons to cycle through different lighting effects on a hexagonal arrangement of NeoPixel LEDs. The central LED serves as a status indicator, while the surrounding six LEDs display the active effect. Button presses trigger smooth transitions between modes, with visual feedback confirming the current selection.
+The controller uses two buttons to cycle through different lighting effects on a linear LED strip using the first 9 LEDs. Two buttons (D5 for effect cycling, D6 for intensity modification) provide intuitive control over the lighting effects. Button presses trigger smooth transitions between modes, with visual feedback confirming the current selection.
 
 ## User Experience Goals
 
@@ -22,6 +22,6 @@ The controller uses two buttons to cycle through different lighting effects on a
 - **Responsive Feedback**: Immediate visual response to button presses enhances user confidence.
 - **Seamless Transitions**: Smooth effect changes create a polished, professional feel.
 - **Reliable Performance**: Consistent operation across different environments and usage patterns.
-- **Aesthetic Appeal**: The hexagonal design and LED arrangement should evoke a sci-fi aesthetic that complements the lighting effects.
+- **Aesthetic Appeal**: The linear LED strip arrangement should evoke a sci-fi aesthetic that complements the lighting effects.
 
-This product transforms LED control from a technical process into an engaging, physical experience that feels like part of a futuristic interface.
+This product transforms LED control from a technical process into an engaging, physical experience with a sleek linear LED strip that feels like part of a futuristic interface.
