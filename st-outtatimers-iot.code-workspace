@@ -10,6 +10,9 @@
 		{
 			"name": "Outtatimers Portal",
 			"path": "Outtatimers Portal"
+		},
+		{
+			"path": "OuttatimersController"
 		}
 	],
 	"settings": {
