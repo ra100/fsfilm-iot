@@ -15,13 +15,13 @@ namespace ControllerConfig
   // Hardware Configuration
   namespace Hardware
   {
-    constexpr int LED_PIN = 4;                  // GPIO4 (D2 on Lolin D1)
+    constexpr int LED_PIN = 4;                  // GPIO4 (D4 on ESP32-C6-DevKitC-1)
     constexpr int NUM_LEDS = 9;                 // Number of LEDs in the strip
     constexpr uint8_t DEFAULT_BRIGHTNESS = 255; // Maximum brightness
 
     // Button pin assignments
-    constexpr int BUTTON1_PIN = 14; // GPIO14 (D5) - Effect cycle button
-    constexpr int BUTTON2_PIN = 12; // GPIO12 (D6) - Effect intensity/modifier button
+    constexpr int BUTTON1_PIN = 5; // GPIO5 (D5) - Effect cycle button
+    constexpr int BUTTON2_PIN = 6; // GPIO6 (D6) - Effect intensity/modifier button
   }
 
   // Timing Configuration
@@ -36,5 +36,14 @@ namespace ControllerConfig
   {
     constexpr uint8_t MIN_BRIGHTNESS = 64;  // Minimum brightness level
     constexpr uint8_t BRIGHTNESS_STEP = 64; // Brightness step for modifier button
+  }
+
+  // WiFi Configuration
+  namespace WiFi
+  {
+    constexpr unsigned long CONNECTION_TIMEOUT_MS = 10000;    // 10 seconds timeout
+    constexpr int HTTP_PORT = 80;                             // HTTP server port
+    constexpr int MAX_CONNECTION_ATTEMPTS = 3;                // Max connection attempts
+    constexpr unsigned long CONNECTION_RETRY_DELAY_MS = 1000; // 1 second between attempts
   }
 }

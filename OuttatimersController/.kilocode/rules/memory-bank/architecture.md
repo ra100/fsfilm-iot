@@ -2,20 +2,20 @@
 
 ## System Architecture
 
-The Outtatimers Controller is a standalone IoT device built on the ESP8266 microcontroller, designed to control LED lighting effects through physical buttons and display them on a linear LED strip using the first 9 LEDs.
+The Outtatimers Controller is a standalone IoT device built on the ESP32-C6 microcontroller, designed to control LED lighting effects through physical buttons and display them on a linear LED strip using the first 9 LEDs.
 
 ## Hardware Architecture
 
-- **Microcontroller**: ESP8266 (Wemos D1 board) for Wi-Fi capability and processing
-- **LED Array**: Standard LED strip using first 9 LEDs (D2 pin) for linear effect display
+- **Microcontroller**: ESP32-C6 (Seeed Xiao ESP32-C6 board) for Wi-Fi 6 capability and processing
+- **LED Array**: Standard LED strip using first 9 LEDs (D4 pin) for linear effect display
 - **Input Devices**: Two physical buttons on D5 (effect cycling) and D6 (intensity modification) for effect selection and control
 - **Power Management**: USB or battery power for standalone operation
 
 ## Software Architecture
 
-- **Framework**: Arduino framework for embedded C++ development
-- **Build System**: PlatformIO for project management and compilation
-- **LED Library**: FastLED for advanced NeoPixel control and effects
+- **Framework**: ESP-IDF framework for production-ready embedded applications
+- **Build System**: PlatformIO with ESP-IDF support for project management and compilation
+- **LED Library**: FastLED for advanced NeoPixel control and effects (ESP-IDF compatible)
 - **Structure**: Modular C++ classes for effects, input handling, and LED management
 
 ## Key Components
@@ -48,9 +48,11 @@ ButtonHandler → EffectManager → LedController → FastLED
 
 ## Technical Decisions
 
-- **ESP8266 over ESP32**: Sufficient performance with lower power consumption
-- **FastLED Library**: Rich feature set for complex LED animations
-- **PlatformIO**: Better dependency management than Arduino IDE
-- **C++ Procedural Approach**: Efficient implementation for embedded constraints
+- **ESP32-C6 over ESP8266**: Enhanced performance with Wi-Fi 6 and Bluetooth 5 LE support
+- **ESP-IDF Framework**: Production-ready framework for robust embedded applications
+- **FastLED Library**: Rich feature set for complex LED animations (ESP-IDF compatible)
+- **PlatformIO**: Better dependency management and ESP-IDF support
+- **C++17 Standard**: Modern C++ features for embedded development
+- **FreeRTOS Integration**: Real-time task scheduling for responsive operation
 - **Linear LED Strip**: Practical hardware choice using first 9 LEDs for effects
 - **Button Pin Configuration**: D5 for effect cycling, D6 for intensity modification

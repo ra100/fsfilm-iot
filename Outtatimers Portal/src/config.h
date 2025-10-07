@@ -21,7 +21,7 @@ namespace PortalConfig
   namespace Hardware
   {
     constexpr int LED_PIN = 4;                    // GPIO4 (D2 on Lolin D1)
-    constexpr int NUM_LEDS = 800;                 // Total LED count in strip
+    constexpr int NUM_LEDS = 756;                 // Total LED count in strip 800 - 46 CUT
     constexpr uint8_t DEFAULT_BRIGHTNESS = 255;   // Maximum brightness
     constexpr uint8_t DIAGNOSTIC_BRIGHTNESS = 25; // ~10% for startup diagnostics
 

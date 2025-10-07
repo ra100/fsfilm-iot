@@ -2,33 +2,39 @@
 
 ## Technologies Used
 
-- **Microcontroller**: ESP8266 (Wemos D1 Mini) - Low-power Wi-Fi enabled microcontroller
-- **Programming Framework**: Arduino - Simplified embedded C++ development
-- **Build System**: PlatformIO - Advanced project management and compilation tool
-- **LED Control Library**: FastLED - High-performance library for addressable LEDs
-- **Programming Language**: C++ - Object-oriented programming for embedded systems
+- **Microcontroller**: ESP32-C6 (Seeed Xiao ESP32-C6) - High-performance Wi-Fi 6 + Bluetooth 5 LE microcontroller
+- **Programming Framework**: ESP-IDF - Espressif IoT Development Framework for production-ready applications
+- **Build System**: PlatformIO with ESP-IDF support - Advanced project management and compilation tool
+- **LED Control Library**: FastLED - High-performance library for addressable LEDs (ESP-IDF compatible)
+- **Programming Language**: C++17 - Modern C++ for embedded systems
+- **Real-Time Operating System**: FreeRTOS - Real-time operating system for embedded applications
 
 ## Development Setup
 
 - **IDE**: VS Code with PlatformIO extension for seamless development workflow
-- **Board Configuration**: Wemos D1 (ESP8266) with 4MB flash and 80MHz clock speed
+- **Board Configuration**: Seeed Xiao ESP32-C6 with Wi-Fi 6 and Bluetooth 5 LE support
 - **Upload Speed**: 115200 baud for firmware flashing
 - **Monitor Speed**: 115200 baud for serial communication and debugging
-- **Filesystem**: LittleFS for SPIFFS-like file system on ESP8266
+- **Filesystem**: LittleFS for SPIFFS-like file system on ESP32-C6
 
 ## Technical Constraints
 
-- **Memory Limitations**: ESP8266 has 80KB RAM and 4MB flash, requiring efficient code
+- **Memory Limitations**: ESP32-C6 has 512KB RAM and 8MB flash, providing more resources for complex applications
 - **Power Consumption**: Designed for battery operation, power management is critical
-- **Processing Power**: 80MHz clock speed limits complex real-time calculations
-- **Network Stack**: Wi-Fi connectivity impacts available memory and power usage
-- **GPIO Limitations**: Limited digital and analog pins for external components
+- **Processing Power**: 160MHz clock speed enables more complex real-time calculations
+- **Network Stack**: Wi-Fi 6 connectivity with improved performance and efficiency
+- **GPIO Limitations**: More digital and analog pins available for external components
 
 ## Dependencies
 
+- **ESP-IDF v5.3**: Official Espressif IoT Development Framework
+  - Provides comprehensive APIs for WiFi, HTTP server, GPIO, and more
+  - Includes FreeRTOS for task management and timing
+  - Supports ESP32-C6 with WiFi 6 and Bluetooth 5 LE
 - **FastLED v3.10.2**: Core library for LED strip control and lighting effects
+  - ESP-IDF compatible version for advanced LED control
   - Provides advanced color management and animation functions
-  - Optimized for ESP8266 performance with linear LED strip
+  - Optimized for ESP32-C6 performance with linear LED strip
   - Supports various LED chipsets including WS2812B
   - Enables 6 distinct lighting effects adapted for linear arrangement
 
