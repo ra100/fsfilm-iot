@@ -45,12 +45,10 @@ private:
   void sendPixel(uint32_t pixel);
   void sendByte(uint8_t byte);
   uint32_t applyBrightness(uint32_t color);
-  static const char *TAG;
+  static constexpr const char *TAG = "NeoPixelDriver";
 };
 
 // Implementation of NeoPixelDriver methods
-
-const char *NeoPixelDriver::TAG = "NeoPixelDriver";
 
 void NeoPixelDriver::begin()
 {

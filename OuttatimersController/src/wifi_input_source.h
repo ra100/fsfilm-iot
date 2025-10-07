@@ -72,7 +72,7 @@ public:
   httpd_handle_t server_handle_;
 
   // Static TAG for logging
-  static const char *TAG;
+  static constexpr const char *TAG = "WiFiInputSource";
 
   // Event queue for input events
   static constexpr int MAX_EVENTS = 8;
@@ -147,8 +147,6 @@ public:
   }
 
 private:
-  // Static TAG definition
-  static const char *TAG;
 };
 
 bool WiFiInputSource::begin(const char *ssid, const char *password)
@@ -316,7 +314,7 @@ esp_err_t WiFiInputSource::handle_root(httpd_req_t *req)
 </body>
 </html>)html";
 
-  char response[4096];
+  char response[8192];
   snprintf(response, sizeof(response), html, self->get_ip_address().c_str());
 
   httpd_resp_set_type(req, "text/html");
@@ -329,7 +327,7 @@ esp_err_t WiFiInputSource::handle_set_effect(httpd_req_t *req)
 {
   WiFiInputSource *self = (WiFiInputSource *)req->user_ctx;
 
-  char buf[10];
+  char buf[128];
   int ret = httpd_req_get_url_query_str(req, buf, sizeof(buf));
   if (ret != ESP_OK)
   {
@@ -368,7 +366,7 @@ esp_err_t WiFiInputSource::handle_set_brightness(httpd_req_t *req)
 {
   WiFiInputSource *self = (WiFiInputSource *)req->user_ctx;
 
-  char buf[10];
+  char buf[128];
   int ret = httpd_req_get_url_query_str(req, buf, sizeof(buf));
   if (ret != ESP_OK)
   {
@@ -461,12 +459,9 @@ std::string WiFiInputSource::get_ip_address()
     esp_netif_t *netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
     if (netif && esp_netif_get_ip_info(netif, &ip_info) == ESP_OK)
     {
+      ESP_LOGI(TAG, "IP Address: " IPSTR, IP2STR(&ip_info.ip));
       char ip_str[16];
-      snprintf(ip_str, sizeof(ip_str), "%lu.%lu.%lu.%lu",
-               ip_info.ip.addr & 0xFF,
-               (ip_info.ip.addr >> 8) & 0xFF,
-               (ip_info.ip.addr >> 16) & 0xFF,
-               (ip_info.ip.addr >> 24) & 0xFF);
+      snprintf(ip_str, sizeof(ip_str), IPSTR, IP2STR(&ip_info.ip));
       return std::string(ip_str);
     }
   }

@@ -20,6 +20,7 @@ idf_component_register(
         esp_wifi        # WiFi support
         esp_http_server # HTTP server for web interface
         nvs_flash       # Non-volatile storage
+        lwip            # TCP/IP stack
 )
 
 # Component configuration
