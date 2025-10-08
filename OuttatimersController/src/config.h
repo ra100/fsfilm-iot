@@ -19,7 +19,7 @@ namespace ControllerConfig
     constexpr int LED_PIN = 22;                 // GPIO22 (D4 on Seeed Xiao ESP32-C6) - External LED strip (changed from GPIO1 which may be used for USB/Serial)
     constexpr int ONBOARD_LED_PIN = 2;          // GPIO2 (D2/A2) - Onboard LED (from pinout diagram)
     constexpr int NUM_LEDS = 9;                 // Number of LEDs in the strip
-    constexpr uint8_t DEFAULT_BRIGHTNESS = 255; // Maximum brightness
+    constexpr uint8_t DEFAULT_BRIGHTNESS = 128; // Maximum brightness
 
     // RMT Configuration for LED strip
     constexpr uint32_t RMT_RESOLUTION_HZ = 10 * 1000 * 1000; // 10MHz resolution for precise WS2812B timing
@@ -27,8 +27,8 @@ namespace ControllerConfig
     constexpr uint8_t RMT_TRANSMIT_QUEUE_DEPTH = 4;          // RMT transmit queue depth
 
     // Button pin assignments
-    constexpr int BUTTON1_PIN = 5; // GPIO5 (D5) - Effect cycle button
-    constexpr int BUTTON2_PIN = 6; // GPIO6 (D6) - Effect intensity/modifier button
+    constexpr int BUTTON1_PIN = 23; // GPIO23 (D5) - Effect cycle button
+    constexpr int BUTTON2_PIN = 16; // GPIO16 (D6) - Effect intensity/modifier button
   }
 
   // Timing Configuration
@@ -43,6 +43,12 @@ namespace ControllerConfig
   {
     constexpr uint8_t MIN_BRIGHTNESS = 64;  // Minimum brightness level
     constexpr uint8_t BRIGHTNESS_STEP = 64; // Brightness step for modifier button
+
+    // LED Selection Configuration
+    // Specify which physical LED indices to use for effects (0-8 for 9 LEDs)
+    // Currently using LEDs: 2,3,4,6,7,8,9 (skipping 0,1,5)
+    constexpr size_t ACTIVE_LED_COUNT = 7;
+    constexpr uint8_t ACTIVE_LEDS[ACTIVE_LED_COUNT] = {1, 2, 3, 5, 6, 7, 8};
   }
 
   // WiFi Configuration

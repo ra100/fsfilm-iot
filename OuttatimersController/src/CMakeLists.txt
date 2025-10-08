@@ -9,6 +9,7 @@ set(SOURCES
     "main.cpp"
     "led_driver.cpp"
     "effect_manager.cpp"
+    "button_handler.cpp"
 )
 
 # Register the component with required dependencies

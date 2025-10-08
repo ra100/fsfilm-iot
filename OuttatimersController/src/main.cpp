@@ -9,6 +9,7 @@
 #include "wifi_input_source.h"
 #include "led_driver.h"
 #include "effect_manager.h"
+#include "button_handler.h"
 
 // WiFi input source
 WiFiInputSource wifiInput;
@@ -19,13 +20,16 @@ RmtLedDriver ledDriver;
 // Effect manager for LED effects
 EffectManager effectManager(ledDriver);
 
+// Button handler for physical input
+ButtonHandler buttonHandler;
+
 // Onboard LED state
 bool onboardLedState = false;
 int64_t lastOnboardLedToggle = 0;
 
 // Battery monitoring state
 float batteryVoltage = 0.0f;
-int batteryPercentage = 0;
+int batteryPercentage = 0; // Global variable accessible by effects
 int64_t lastBatteryRead = 0;
 
 // Logging tag
@@ -162,6 +166,10 @@ extern "C" void app_main(void)
   wifiInput.begin(WIFI_SSID, WIFI_PASSWORD);
   ESP_LOGI(TAG, "WiFi input source initialized");
 
+  // Initialize button handler
+  buttonHandler.begin();
+  ESP_LOGI(TAG, "Button handler initialized");
+
   ESP_LOGI(TAG, "Setup complete, starting main task");
 
   // Start the main task
@@ -202,6 +210,34 @@ void main_task(void *pvParameter)
             uint8_t brightness = static_cast<uint8_t>(-wifiEvent.inputId);
             effectManager.setBrightness(brightness);
             ESP_LOGI(TAG, "Brightness set to %d via WiFi", brightness);
+          }
+        }
+      }
+    }
+
+    // Handle button input events
+    if (buttonHandler.update(currentTime))
+    {
+      if (buttonHandler.hasEvents())
+      {
+        ButtonEvent buttonEvent = buttonHandler.getNextEvent();
+        ESP_LOGI(TAG, "Button event - Button ID: %d, State: %d", buttonEvent.buttonId, static_cast<int>(buttonEvent.state));
+        lastActivityTime = currentTime;
+
+        if (buttonEvent.buttonId == 0) // Button1 (D5) - Effect cycling
+        {
+          if (buttonEvent.state == ButtonState::Pressed)
+          {
+            effectManager.nextEffect();
+            ESP_LOGI(TAG, "Button1 pressed - Next effect: %s", effectManager.getCurrentEffectName());
+          }
+        }
+        else if (buttonEvent.buttonId == 1) // Button2 (D6) - LED on/off toggle
+        {
+          if (buttonEvent.state == ButtonState::Pressed)
+          {
+            effectManager.toggleLeds();
+            ESP_LOGI(TAG, "Button2 pressed - LEDs %s", effectManager.areLedsOn() ? "ON" : "OFF");
           }
         }
       }
