@@ -5,6 +5,9 @@
 #include <esp_timer.h>
 #include <driver/gpio.h>
 #include <driver/adc.h>
+#include <esp_sleep.h>
+#include <esp_wifi.h>
+#include <esp_netif.h>
 #include "config.h"
 #include "wifi_input_source.h"
 #include "led_driver.h"
@@ -32,11 +35,50 @@ float batteryVoltage = 0.0f;
 int batteryPercentage = 0; // Global variable accessible by effects
 int64_t lastBatteryRead = 0;
 
+// WiFi state for effects
+int wifiState = 0; // 0: disconnected, 1: connecting, 2: connected, 3: AP mode
+
 // Logging tag
 static const char *TAG = "outtatimers";
 
 // Forward declaration for the main task
 void main_task(void *pvParameter);
+
+// Power management functions
+void enterDeepSleep()
+{
+  ESP_LOGI(TAG, "Entering deep sleep mode for battery conservation...");
+
+  // Disconnect from WiFi if connected
+  if (wifiInput.isConnected_)
+  {
+    ESP_LOGI(TAG, "Disconnecting from WiFi before sleep...");
+    esp_wifi_disconnect();
+    vTaskDelay(pdMS_TO_TICKS(100)); // Give time for disconnect
+  }
+
+  // Stop WiFi entirely
+  esp_wifi_stop();
+  vTaskDelay(pdMS_TO_TICKS(100));
+
+  // Turn off all LEDs
+  ledDriver.clear();
+  ledDriver.show();
+
+  // Turn off onboard LED
+  gpio_set_level((gpio_num_t)ControllerConfig::Hardware::ONBOARD_LED_PIN, 0);
+
+  ESP_LOGI(TAG, "WiFi disconnected, LEDs off - entering deep sleep");
+
+  // Configure wake-up using timer (ESP32-C6 compatible method)
+  ESP_LOGI(TAG, "Configuring timer wake-up (10 seconds) for testing");
+  ESP_ERROR_CHECK(esp_sleep_enable_timer_wakeup(10 * 1000000)); // Wake up after 10 seconds for testing
+
+  ESP_LOGI(TAG, "Deep sleep configured - press Button2 to wake up");
+
+  // Enter deep sleep
+  esp_deep_sleep_start();
+}
 
 // Battery monitoring functions
 void initBatteryMonitoring()
@@ -232,12 +274,17 @@ void main_task(void *pvParameter)
             ESP_LOGI(TAG, "Button1 pressed - Next effect: %s", effectManager.getCurrentEffectName());
           }
         }
-        else if (buttonEvent.buttonId == 1) // Button2 (D6) - LED on/off toggle
+        else if (buttonEvent.buttonId == 1) // Button2 (D6) - LED on/off toggle or deep sleep
         {
           if (buttonEvent.state == ButtonState::Pressed)
           {
             effectManager.toggleLeds();
             ESP_LOGI(TAG, "Button2 pressed - LEDs %s", effectManager.areLedsOn() ? "ON" : "OFF");
+          }
+          else if (buttonEvent.state == ButtonState::DeepSleep)
+          {
+            ESP_LOGI(TAG, "Button2 held for 3 seconds - triggering deep sleep");
+            enterDeepSleep();
           }
         }
       }
@@ -251,14 +298,23 @@ void main_task(void *pvParameter)
       {
         ESP_LOGI(TAG, "WiFi connected - effect system active");
         ESP_LOGI(TAG, "WiFi connected - onboard LED solid ON");
+        wifiState = 2; // Connected state
       }
       else
       {
         ESP_LOGI(TAG, "WiFi connecting - effect system active");
         ESP_LOGI(TAG, "WiFi connecting - onboard LED blinking");
+        wifiState = 1; // Connecting state
       }
       wasConnected = isConnected;
       lastActivityTime = currentTime;
+    }
+    else if (!isConnected && !wasConnected)
+    {
+      // Check if we're in AP mode or completely disconnected
+      // For now, assume disconnected if not connected and not connecting
+      wifiState = 0; // Disconnected state
+      // TODO: Add AP mode detection if needed
     }
 
     // Update onboard LED based on connection status

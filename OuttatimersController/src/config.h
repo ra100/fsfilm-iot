@@ -34,7 +34,6 @@ namespace ControllerConfig
   // Timing Configuration
   namespace Timing
   {
-    constexpr unsigned long DEBOUNCE_DELAY = 200;        // Debounce time in ms
     constexpr unsigned long EFFECT_UPDATE_INTERVAL = 20; // Effect update interval
   }
 

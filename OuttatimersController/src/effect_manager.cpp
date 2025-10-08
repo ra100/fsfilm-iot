@@ -4,41 +4,252 @@
 // Global battery percentage variable accessible by effects
 extern int batteryPercentage;
 
-// PurpleChaseEffect implementation
+// Global WiFi state variable accessible by effects
+extern int wifiState;
 
-void PurpleChaseEffect::begin(ILEDDriver &driver)
+// WiFiModeEffect implementation
+
+void WiFiModeEffect::begin(ILEDDriver &driver)
 {
-  ESP_LOGI("PurpleChase", "Starting purple chase effect");
-  lastStepTime_ = esp_timer_get_time();
-  currentLed_ = 0;
+  ESP_LOGI("WiFiMode", "Starting WiFi mode effect");
+  lastUpdateTime_ = esp_timer_get_time();
+  blinkState_ = false;
 
-  // Start with first LED on
+  // Initial display update
+  updateWiFiStatusDisplay(driver);
+}
+
+void WiFiModeEffect::update(ILEDDriver &driver, int64_t currentTime)
+{
+  // Update display every 500ms for blinking effects
+  if (currentTime - lastUpdateTime_ >= 500000) // 500ms in microseconds
+  {
+    // Toggle blink state for blinking modes
+    blinkState_ = !blinkState_;
+
+    // Update display based on current WiFi status
+    updateWiFiStatusDisplay(driver);
+
+    lastUpdateTime_ = currentTime;
+  }
+}
+
+void WiFiModeEffect::end(ILEDDriver &driver)
+{
+  ESP_LOGI("WiFiMode", "Ending WiFi mode effect");
+
+  // Turn off all LEDs
   driver.clear();
-  driver.setPixel(logicalToPhysical(0), PurpleChaseEffect::COLOR_PORTAL_GRB);
   driver.show();
 }
 
-void PurpleChaseEffect::update(ILEDDriver &driver, int64_t currentTime)
+void WiFiModeEffect::updateWiFiStatusDisplay(ILEDDriver &driver)
+{
+  // Clear all LEDs first
+  for (size_t i = 0; i < ControllerConfig::Effects::ACTIVE_LED_COUNT; i++)
+  {
+    driver.setPixel(logicalToPhysical(i), 0);
+  }
+
+  // Check real WiFi connection status and display appropriate pattern
+  switch (wifiState)
+  {
+  case 0: // Disconnected
+    // No LEDs on - indicates WiFi is disconnected
+    ESP_LOGI("WiFiMode", "Real: Disconnected state (no LEDs)");
+    break;
+  case 1: // Connecting
+    showConnectingState(driver);
+    ESP_LOGI("WiFiMode", "Real: Connecting state (2 LEDs blinking)");
+    break;
+  case 2: // Connected
+    showConnectedState(driver);
+    ESP_LOGI("WiFiMode", "Real: Connected state (4 LEDs solid)");
+    break;
+  case 3: // AP Mode
+    if (blinkState_)
+    {
+      showAPModeState(driver);
+      ESP_LOGI("WiFiMode", "Real: AP mode state (6 LEDs blinking)");
+    }
+    else
+    {
+      // Turn off for blinking effect
+      driver.show();
+    }
+    break;
+  default:
+    ESP_LOGI("WiFiMode", "Unknown WiFi state: %d", wifiState);
+    break;
+  }
+
+  driver.show();
+}
+
+void WiFiModeEffect::showConnectingState(ILEDDriver &driver)
+{
+  if (blinkState_)
+  {
+    // Turn on 2 LEDs for connecting state
+    driver.setPixel(logicalToPhysical(0), COLOR_BLUE_GRB);
+    driver.setPixel(logicalToPhysical(1), COLOR_BLUE_GRB);
+  }
+  driver.show();
+}
+
+void WiFiModeEffect::showConnectedState(ILEDDriver &driver)
+{
+  // Turn on 4 LEDs for connected state (solid, no blinking)
+  for (size_t i = 0; i < 4; i++)
+  {
+    driver.setPixel(logicalToPhysical(i), COLOR_BLUE_GRB);
+  }
+  driver.show();
+}
+
+void WiFiModeEffect::showAPModeState(ILEDDriver &driver)
+{
+  // Turn on 6 LEDs for AP mode (blinking)
+  for (size_t i = 0; i < 6; i++)
+  {
+    driver.setPixel(logicalToPhysical(i), COLOR_BLUE_GRB);
+  }
+  driver.show();
+}
+
+// RandomBlinkEffect implementation
+
+void RandomBlinkEffect::begin(ILEDDriver &driver)
+{
+  ESP_LOGI("RandomBlink", "Starting random blink effect");
+  startTime_ = esp_timer_get_time();
+  lastUpdateTime_ = startTime_;
+  isRunning_ = true;
+  activeLedCount_ = 0;
+
+  // Clear all LEDs first
+  driver.clear();
+
+  // Turn on 1-2 random LEDs from the 1-6 range
+  size_t ledsToTurnOn = (rand() % 2) + 1; // 1 or 2 LEDs
+
+  for (size_t i = 0; i < ledsToTurnOn; i++)
+  {
+    size_t randomLed;
+    do
+    {
+      randomLed = getRandomLedIndex(); // Get random LED 1-6
+    } while (isLedActive(randomLed)); // Avoid duplicates
+
+    driver.setPixel(logicalToPhysical(randomLed), COLOR_RED_GRB);
+    addActiveLed(randomLed);
+    ESP_LOGI("RandomBlink", "Turned on LED %d", randomLed);
+  }
+
+  driver.show();
+  ESP_LOGI("RandomBlink", "Random blink started with %d active LEDs", activeLedCount_);
+}
+
+void RandomBlinkEffect::update(ILEDDriver &driver, int64_t currentTime)
+{
+  if (!isRunning_)
+    return;
+
+  // Check if 15 seconds have elapsed
+  if (shouldStop(currentTime))
+  {
+    ESP_LOGI("RandomBlink", "15 seconds elapsed, stopping effect");
+    isRunning_ = false;
+    driver.clear();
+    driver.show();
+    return;
+  }
+
+  // Update every 200ms
+  if (currentTime - lastUpdateTime_ >= BLINK_INTERVAL_MS * 1000)
+  {
+    // Turn off currently active LEDs
+    for (size_t i = 0; i < activeLedCount_; i++)
+    {
+      driver.setPixel(logicalToPhysical(activeLeds_[i]), 0);
+    }
+
+    // Reset active LED count
+    activeLedCount_ = 0;
+
+    // Turn on 1-2 new random LEDs
+    size_t ledsToTurnOn = (rand() % 2) + 1; // 1 or 2 LEDs
+
+    for (size_t i = 0; i < ledsToTurnOn; i++)
+    {
+      size_t randomLed;
+      do
+      {
+        randomLed = getRandomLedIndex(); // Get random LED 1-6
+      } while (isLedActive(randomLed)); // Avoid duplicates
+
+      driver.setPixel(logicalToPhysical(randomLed), COLOR_RED_GRB);
+      addActiveLed(randomLed);
+      ESP_LOGI("RandomBlink", "Turned on LED %d", randomLed);
+    }
+
+    driver.show();
+    lastUpdateTime_ = currentTime;
+  }
+}
+
+void RandomBlinkEffect::end(ILEDDriver &driver)
+{
+  ESP_LOGI("RandomBlink", "Ending random blink effect");
+  isRunning_ = false;
+  activeLedCount_ = 0;
+  driver.clear();
+  driver.show();
+}
+
+// RotatingDarknessEffect implementation
+
+void RotatingDarknessEffect::begin(ILEDDriver &driver)
+{
+  ESP_LOGI("RotatingDarkness", "Starting rotating darkness effect");
+  lastStepTime_ = esp_timer_get_time();
+  darkLed_ = 0;
+
+  // Turn on all first 6 LEDs
+  for (size_t i = 0; i < 6; i++)
+  {
+    driver.setPixel(logicalToPhysical(i), COLOR_MAIN_GRB);
+  }
+
+  // Turn off the first dark LED
+  driver.setPixel(logicalToPhysical(darkLed_), 0);
+  driver.show();
+
+  ESP_LOGI("RotatingDarkness", "Initialized with LED %d dark", darkLed_);
+}
+
+void RotatingDarknessEffect::update(ILEDDriver &driver, int64_t currentTime)
 {
   if (currentTime - lastStepTime_ >= stepDurationMs_ * 1000)
   {
-    // Turn off current LED
-    driver.setPixel(logicalToPhysical(currentLed_), 0);
+    // Turn on the currently dark LED
+    driver.setPixel(logicalToPhysical(darkLed_), COLOR_MAIN_GRB);
 
-    // Move to next LED (logical index 0-6 for 7 active LEDs)
-    currentLed_ = (currentLed_ + 1) % ControllerConfig::Effects::ACTIVE_LED_COUNT;
+    // Move to next dark LED position (cycle through first 6 LEDs only)
+    darkLed_ = (darkLed_ + 1) % 6;
 
-    // Turn on next LED
-    driver.setPixel(logicalToPhysical(currentLed_), PurpleChaseEffect::COLOR_PORTAL_GRB);
+    // Turn off the new dark LED
+    driver.setPixel(logicalToPhysical(darkLed_), 0);
     driver.show();
 
+    ESP_LOGI("RotatingDarkness", "Dark LED moved to position %d", darkLed_);
     lastStepTime_ = currentTime;
   }
 }
 
-void PurpleChaseEffect::end(ILEDDriver &driver)
+void RotatingDarknessEffect::end(ILEDDriver &driver)
 {
-  ESP_LOGI("PurpleChase", "Ending purple chase effect");
+  ESP_LOGI("RotatingDarkness", "Ending rotating darkness effect");
   driver.clear();
   driver.show();
 }
@@ -92,42 +303,7 @@ void BatteryStatusEffect::end(ILEDDriver &driver)
   driver.show();
 }
 
-// RainbowEffect implementation
-
-void RainbowEffect::begin(ILEDDriver &driver)
-{
-  ESP_LOGI("Rainbow", "Starting rainbow debug effect");
-
-  // Clear all LEDs first
-  driver.clear();
-
-  // Set each LED to a different rainbow color
-  for (size_t i = 0; i < ControllerConfig::Effects::ACTIVE_LED_COUNT; i++)
-  {
-    uint32_t color = getRainbowColor(i);
-    driver.setPixel(logicalToPhysical(i), color);
-    ESP_LOGI("Rainbow", "LED %d set to color 0x%08X", i, color);
-  }
-
-  driver.show();
-  ESP_LOGI("Rainbow", "Rainbow pattern displayed - check LED colors and positions");
-}
-
-void RainbowEffect::update(ILEDDriver &driver, int64_t currentTime)
-{
-  // Static rainbow display - no updates needed
-  // This effect is for debugging LED positions and colors
-}
-
-void RainbowEffect::end(ILEDDriver &driver)
-{
-  ESP_LOGI("Rainbow", "Ending rainbow debug effect");
-  driver.clear();
-  driver.show();
-}
-
 // PortalOpenEffect implementation
-
 void PortalOpenEffect::begin(ILEDDriver &driver)
 {
   ESP_LOGI("PortalOpen", "Starting portal open effect");
@@ -299,8 +475,8 @@ const char *EffectManager::getCurrentEffectName() const
 
 void EffectManager::initializeEffects()
 {
-  // Initialize purple chase effect as the first effect (index 0)
-  effects_[0] = std::make_unique<PurpleChaseEffect>(200); // 200ms per step
+  // Initialize rotating darkness effect as the first effect (index 0)
+  effects_[0] = std::make_unique<RotatingDarknessEffect>(200); // 200ms per step
 
   // Initialize portal open effect as the second effect (index 1)
   effects_[1] = std::make_unique<PortalOpenEffect>(500); // 500ms per step
@@ -308,13 +484,15 @@ void EffectManager::initializeEffects()
   // Initialize battery status effect as the third effect (index 2)
   effects_[2] = std::make_unique<BatteryStatusEffect>();
 
-  // Initialize rainbow debug effect as the fourth effect (index 3)
-  effects_[3] = std::make_unique<RainbowEffect>();
-  effectCount_ = 4;
+  // Initialize random blink effect as the fourth effect (index 3)
+  effects_[3] = std::make_unique<RandomBlinkEffect>();
+
+  // Initialize WiFi mode effect as the fifth effect (index 4)
+  effects_[4] = std::make_unique<WiFiModeEffect>();
+  effectCount_ = 5;
 
   // TODO: Add more effects here in the future
   // effects_[4] = std::make_unique<SolidColorEffect>();
-  // effects_[5] = std::make_unique<AdvancedEffect>();
   // etc.
 
   ESP_LOGI("EffectManager", "Initialized %d effects", effectCount_);

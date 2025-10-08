@@ -15,7 +15,8 @@ enum class ButtonState
 {
   Released,
   Pressed,
-  LongPress
+  LongPress,
+  DeepSleep // 3-second hold for power saving
 };
 
 /**
@@ -69,6 +70,9 @@ private:
 
   // Long press threshold (2 seconds)
   static constexpr int64_t LONG_PRESS_THRESHOLD_US = 2000000;
+
+  // Deep sleep threshold (3 seconds) - for button2 only
+  static constexpr int64_t DEEP_SLEEP_THRESHOLD_US = 3000000;
 
   void addEvent(uint8_t buttonId, ButtonState state);
   ButtonState getButton1State(int64_t currentTime);

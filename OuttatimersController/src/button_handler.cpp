@@ -139,20 +139,27 @@ ButtonState ButtonHandler::getButton2State(int64_t currentTime)
     else // Button released
     {
       button2State_ = false;
-      ButtonState state = (button2PressStart_ > 0 && currentTime - button2PressStart_ > LONG_PRESS_THRESHOLD_US)
-                              ? ButtonState::LongPress
-                              : ButtonState::Released;
+      // Check duration to determine if it was a long press or deep sleep
+      if (button2PressStart_ > 0)
+      {
+        int64_t pressDuration = currentTime - button2PressStart_;
+        if (pressDuration > DEEP_SLEEP_THRESHOLD_US)
+        {
+          button2PressStart_ = 0;
+          return ButtonState::DeepSleep;
+        }
+        else if (pressDuration > LONG_PRESS_THRESHOLD_US)
+        {
+          button2PressStart_ = 0;
+          return ButtonState::LongPress;
+        }
+      }
       button2PressStart_ = 0;
-      return state;
+      return ButtonState::Released;
     }
   }
 
-  // Check for long press while button is held
-  if (button2State_ && button2PressStart_ > 0 && currentTime - button2PressStart_ > LONG_PRESS_THRESHOLD_US)
-  {
-    return ButtonState::LongPress;
-  }
-
+  // While button is held, return Released (state only determined on release)
   return ButtonState::Released;
 }
 

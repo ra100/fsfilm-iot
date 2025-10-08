@@ -47,34 +47,37 @@ protected:
 };
 
 /**
- * @brief Purple chase effect - LEDs light up in sequence with purple color
+ * @brief Rotating darkness effect - red color with blue/green, first 6 LEDs all on except one rotating
  *
- * Requirements:
- * - All LEDs are purple (GRB: 0, 200, 100) → RGB: 200, 0, 100
- * - LEDs light up in sequence (one at a time)
- * - Only one LED is on at any given time
- * - This is the default starting effect
+ * Features:
+ * - Uses red color with bit of blue and green
+ * - Only first 6 LEDs are used (indices 0-5)
+ * - All 6 LEDs are on, but one is off and rotates through them
+ * - Creates a "chase the darkness" effect
+ * - 200ms cycle time for smooth animation
  */
-class PurpleChaseEffect : public ILEDEffect
+class RotatingDarknessEffect : public ILEDEffect
 {
 public:
-  PurpleChaseEffect(uint32_t stepDurationMs = 200) : stepDurationMs_(stepDurationMs), lastStepTime_(0), currentLed_(0) {}
+  RotatingDarknessEffect(uint32_t stepDurationMs = 5) : stepDurationMs_(stepDurationMs), lastStepTime_(0), darkLed_(0) {}
 
   void begin(ILEDDriver &driver) override;
   void update(ILEDDriver &driver, int64_t currentTime) override;
   void end(ILEDDriver &driver) override;
-  const char *getName() const override { return "Purple Chase"; }
+  const char *getName() const override { return "Rotating Darkness"; }
 
 private:
   uint32_t stepDurationMs_;
   int64_t lastStepTime_;
-  size_t currentLed_; // Logical LED index (0-6 for 7 active LEDs)
+  size_t darkLed_; // Which LED is currently "dark" (off)
 
-  static constexpr uint32_t COLOR_PORTAL_GRB = makeColor(0, 255, 255); // Full brightness purple
+  // Color definitions using helper function
+  // Red color with bit of blue and green
+  static constexpr uint32_t COLOR_MAIN_GRB = makeColor(20, 150, 20); // Red with some green and blue
 
   /**
    * @brief Convert logical LED index to physical LED index
-   * @param logicalIndex Logical index (0-6)
+   * @param logicalIndex Logical index (0-5 for first 6 LEDs only)
    * @return Physical LED index from ACTIVE_LEDS array
    */
   uint8_t logicalToPhysical(size_t logicalIndex) const
@@ -183,43 +186,146 @@ private:
 };
 
 /**
- * @brief Rainbow effect - displays rainbow colors for LED debugging and identification
+ * @brief Random blink effect - random red blinking with 15-second auto-stop
  *
  * Features:
- * - Each LED shows a different color of the rainbow (based on actual observation)
- * - Helps identify LED positions and test color accuracy
- * - Uses the full visible spectrum for clear LED identification
- * - Static display (no animation) for easy observation
- *
- * Actual LED Color Mapping:
- * - Logical 0 → Physical LED2: Green
- * - Logical 1 → Physical LED3: Yellow
- * - Logical 2 → Physical LED4: Orange
- * - Logical 3 → Physical LED6: Red
- * - Logical 4 → Physical LED7: Blue
- * - Logical 5 → Physical LED8: Indigo
- * - Logical 6 → Physical LED9: Violet
+ * - Uses only LEDs 1-6 (skips first LED, logical indices 1-6)
+ * - Randomly blinks in red color
+ * - Maximum 2 LEDs on at any time
+ * - Runs for 15 seconds then auto-stops
+ * - Only restarts when on/off button is pressed again
+ * - Creates dynamic random blinking pattern
  */
-class RainbowEffect : public ILEDEffect
+class RandomBlinkEffect : public ILEDEffect
 {
 public:
-  RainbowEffect() {}
+  RandomBlinkEffect() : startTime_(0), isRunning_(false), lastUpdateTime_(0), activeLedCount_(0) {}
 
   void begin(ILEDDriver &driver) override;
   void update(ILEDDriver &driver, int64_t currentTime) override;
   void end(ILEDDriver &driver) override;
-  const char *getName() const override { return "Rainbow Debug"; }
+  const char *getName() const override { return "Random Blink"; }
 
 private:
-  // Rainbow colors in GRB format for clear LED identification
-  // Updated based on actual LED strip observation
-  static constexpr uint32_t COLOR_RED_GRB = 0x80000000;    // Red (for LED6)
-  static constexpr uint32_t COLOR_ORANGE_GRB = 0xFFFF8000; // Orange (for LED4)
-  static constexpr uint32_t COLOR_YELLOW_GRB = 0xFF800000; // Yellow (for LED3)
-  static constexpr uint32_t COLOR_GREEN_GRB = 0x00FF0000;  // Green (for LED2)
-  static constexpr uint32_t COLOR_BLUE_GRB = 0xFF0000FF;   // Blue (for LED7) ✓
-  static constexpr uint32_t COLOR_INDIGO_GRB = 0xFF0080FF; // Indigo (for LED8) ✓
-  static constexpr uint32_t COLOR_VIOLET_GRB = 0xFF00FF80; // Violet (for LED9) ✓
+  static constexpr uint32_t EFFECT_DURATION_US = 15 * 1000000; // 15 seconds in microseconds
+  static constexpr uint32_t BLINK_INTERVAL_MS = 200;           // Blink every 200ms
+  static constexpr size_t MAX_ACTIVE_LEDS = 2;                 // Maximum 2 LEDs on at once
+  static constexpr size_t FIRST_LED_INDEX = 1;                 // Start from LED 1, skip LED 0
+
+  int64_t startTime_;
+  bool isRunning_;
+  int64_t lastUpdateTime_;
+  size_t activeLedCount_;
+  size_t activeLeds_[MAX_ACTIVE_LEDS]; // Track which LEDs are currently on
+
+  // Color definitions using helper function
+  static constexpr uint32_t COLOR_RED_GRB = makeColor(0, 255, 0); // Bright red color
+
+  /**
+   * @brief Convert logical LED index to physical LED index
+   * @param logicalIndex Logical index (1-6 for this effect)
+   * @return Physical LED index from ACTIVE_LEDS array
+   */
+  uint8_t logicalToPhysical(size_t logicalIndex) const
+  {
+    return ControllerConfig::Effects::ACTIVE_LEDS[logicalIndex];
+  }
+
+  /**
+   * @brief Check if effect should stop (15 seconds elapsed)
+   * @param currentTime Current time in microseconds
+   * @return true if effect should stop
+   */
+  bool shouldStop(int64_t currentTime) const
+  {
+    return isRunning_ && (currentTime - startTime_) >= EFFECT_DURATION_US;
+  }
+
+  /**
+   * @brief Get random LED index (1-6)
+   * @return Random logical LED index
+   */
+  size_t getRandomLedIndex() const
+  {
+    return (rand() % 6) + FIRST_LED_INDEX; // Random 1-6
+  }
+
+  /**
+   * @brief Check if LED is currently active
+   * @param ledIndex LED index to check
+   * @return true if LED is on
+   */
+  bool isLedActive(size_t ledIndex) const
+  {
+    for (size_t i = 0; i < activeLedCount_; i++)
+    {
+      if (activeLeds_[i] == ledIndex)
+        return true;
+    }
+    return false;
+  }
+
+  /**
+   * @brief Add LED to active list
+   * @param ledIndex LED index to add
+   */
+  void addActiveLed(size_t ledIndex)
+  {
+    if (activeLedCount_ < MAX_ACTIVE_LEDS)
+    {
+      activeLeds_[activeLedCount_] = ledIndex;
+      activeLedCount_++;
+    }
+  }
+
+  /**
+   * @brief Remove LED from active list
+   * @param ledIndex LED index to remove
+   */
+  void removeActiveLed(size_t ledIndex)
+  {
+    for (size_t i = 0; i < activeLedCount_; i++)
+    {
+      if (activeLeds_[i] == ledIndex)
+      {
+        // Move last element to current position
+        activeLeds_[i] = activeLeds_[activeLedCount_ - 1];
+        activeLedCount_--;
+        break;
+      }
+    }
+  }
+};
+
+/**
+ * @brief WiFi mode effect - enables WiFi only when this effect is active and LEDs are on
+ *
+ * Features:
+ * - Only connects to WiFi when this effect is selected and LEDs are on
+ * - Disconnects WiFi when leaving this effect or turning LEDs off
+ * - Dynamic visual feedback based on WiFi connection status:
+ *   - Connecting: Blink 2 LEDs blue (searching for network)
+ *   - Connected: 4 LEDs solid blue (successful connection)
+ *   - AP Mode: Blink 6 LEDs blue (fallback access point mode)
+ * - Power-efficient: WiFi only active when explicitly requested
+ * - Real-time status updates with 500ms refresh rate
+ */
+class WiFiModeEffect : public ILEDEffect
+{
+public:
+  WiFiModeEffect() : lastUpdateTime_(0), blinkState_(false) {}
+
+  void begin(ILEDDriver &driver) override;
+  void update(ILEDDriver &driver, int64_t currentTime) override;
+  void end(ILEDDriver &driver) override;
+  const char *getName() const override { return "WiFi Mode"; }
+
+private:
+  int64_t lastUpdateTime_;
+  bool blinkState_;
+
+  // Color definitions using helper function
+  static constexpr uint32_t COLOR_BLUE_GRB = makeColor(0, 0, 255); // Blue for WiFi status
 
   /**
    * @brief Convert logical LED index to physical LED index
@@ -232,33 +338,28 @@ private:
   }
 
   /**
-   * @brief Get rainbow color for a specific LED position
-   * @param ledIndex LED position (0-6)
-   * @return GRB color value for that position
+   * @brief Update LED display based on current WiFi status
+   * @param driver LED driver instance
    */
-  uint32_t getRainbowColor(size_t ledIndex) const
-  {
-    // Updated based on actual LED strip observation
-    switch (ledIndex)
-    {
-    case 0:
-      return COLOR_GREEN_GRB; // Physical LED2: Green
-    case 1:
-      return COLOR_YELLOW_GRB; // Physical LED3: Yellow
-    case 2:
-      return COLOR_ORANGE_GRB; // Physical LED4: Orange
-    case 3:
-      return COLOR_RED_GRB; // Physical LED6: Red
-    case 4:
-      return COLOR_BLUE_GRB; // Physical LED7: Blue ✓
-    case 5:
-      return COLOR_INDIGO_GRB; // Physical LED8: Indigo ✓
-    case 6:
-      return COLOR_VIOLET_GRB; // Physical LED9: Violet ✓
-    default:
-      return COLOR_RED_GRB; // Fallback to red
-    }
-  }
+  void updateWiFiStatusDisplay(ILEDDriver &driver);
+
+  /**
+   * @brief Display connecting state (2 LEDs blinking blue)
+   * @param driver LED driver instance
+   */
+  void showConnectingState(ILEDDriver &driver);
+
+  /**
+   * @brief Display connected state (4 LEDs solid blue)
+   * @param driver LED driver instance
+   */
+  void showConnectedState(ILEDDriver &driver);
+
+  /**
+   * @brief Display AP mode state (6 LEDs blinking blue)
+   * @param driver LED driver instance
+   */
+  void showAPModeState(ILEDDriver &driver);
 };
 
 /**
