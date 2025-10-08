@@ -4,6 +4,7 @@
 #define LED_TYPE WS2812B
 
 #include <stdint.h>
+#include <cstddef>
 
 /**
  * @file config.h
@@ -19,6 +20,11 @@ namespace ControllerConfig
     constexpr int ONBOARD_LED_PIN = 2;          // GPIO2 (D2/A2) - Onboard LED (from pinout diagram)
     constexpr int NUM_LEDS = 9;                 // Number of LEDs in the strip
     constexpr uint8_t DEFAULT_BRIGHTNESS = 255; // Maximum brightness
+
+    // RMT Configuration for LED strip
+    constexpr uint32_t RMT_RESOLUTION_HZ = 10 * 1000 * 1000; // 10MHz resolution for precise WS2812B timing
+    constexpr size_t RMT_MEM_BLOCK_SYMBOLS = 64;             // RMT memory block size
+    constexpr uint8_t RMT_TRANSMIT_QUEUE_DEPTH = 4;          // RMT transmit queue depth
 
     // Button pin assignments
     constexpr int BUTTON1_PIN = 5; // GPIO5 (D5) - Effect cycle button

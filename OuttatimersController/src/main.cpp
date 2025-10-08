@@ -14,7 +14,7 @@
 WiFiInputSource wifiInput;
 
 // LED driver for visual feedback
-NeoPixelDriver ledDriver;
+RmtLedDriver ledDriver;
 
 // Effect manager for LED effects
 EffectManager effectManager(ledDriver);
