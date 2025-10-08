@@ -7,6 +7,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Define source files
 set(SOURCES
     "main.cpp"
+    "led_driver.cpp"
+    "effect_manager.cpp"
 )
 
 # Register the component with required dependencies

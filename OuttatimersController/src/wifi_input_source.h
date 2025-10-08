@@ -94,6 +94,7 @@ public:
   static esp_err_t handle_set_effect(httpd_req_t *req);
   static esp_err_t handle_set_brightness(httpd_req_t *req);
   static esp_err_t handle_status(httpd_req_t *req);
+  static esp_err_t handle_battery(httpd_req_t *req);
   static esp_err_t handle_list_effects(httpd_req_t *req);
 
 public:
@@ -197,6 +198,14 @@ esp_err_t WiFiInputSource::start_wifi_station(const char *ssid, const char *pass
   ESP_ERROR_CHECK(esp_wifi_init(&cfg));
   ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
   ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
+
+  // Enable power save mode for battery efficiency
+  if (ControllerConfig::WiFi::POWER_SAVE_MODE)
+  {
+    ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_PS_MIN_MODEM)); // Maximum power save
+    ESP_LOGI(TAG, "WiFi power save mode enabled");
+  }
+
   ESP_ERROR_CHECK(esp_wifi_start());
 
   connectionStartTime_ = esp_timer_get_time();
@@ -209,6 +218,7 @@ esp_err_t WiFiInputSource::setup_web_server()
 {
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.max_uri_handlers = 10;
+  config.stack_size = 16384; // Increase stack size to 16KB to handle large HTML responses
 
   ESP_ERROR_CHECK(httpd_start(&server_handle_, &config));
 
@@ -241,6 +251,13 @@ esp_err_t WiFiInputSource::setup_web_server()
       .user_ctx = this};
   httpd_register_uri_handler(server_handle_, &status_handler);
 
+  httpd_uri_t battery_handler = {
+      .uri = "/battery",
+      .method = HTTP_GET,
+      .handler = handle_battery,
+      .user_ctx = this};
+  httpd_register_uri_handler(server_handle_, &battery_handler);
+
   return ESP_OK;
 }
 
@@ -248,74 +265,67 @@ esp_err_t WiFiInputSource::handle_root(httpd_req_t *req)
 {
   WiFiInputSource *self = (WiFiInputSource *)req->user_ctx;
 
-  const char *html = R"html(
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Outtatimers Controller</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        .container { max-width: 600px; margin: 0 auto; }
-        .btn { background: #007bff; color: white; border: none; padding: 10px 20px; margin: 5px; border-radius: 5px; cursor: pointer; }
-        .btn:hover { background: #0056b3; }
-        .effect-btn { background: #28a745; }
-        .effect-btn:hover { background: #1e7e34; }
-        .status { background: #e9ecef; padding: 10px; margin: 10px 0; border-radius: 5px; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>Outtatimers Controller</h1>
-        <div class="status">
-            <h3>Status: Connected to WiFi</h3>
-            <p><strong>IP Address:</strong> %s</p>
-        </div>
+  // Use a smaller, more efficient HTML response
+  const char *html_template =
+      "<!DOCTYPE html>"
+      "<html><head><title>Outtatimers Controller</title>"
+      "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
+      "<style>"
+      "body{font-family:Arial,sans-serif;margin:20px;}"
+      ".container{max-width:600px;margin:0 auto;}"
+      ".btn{background:#007bff;color:white;border:none;padding:10px 20px;margin:5px;border-radius:5px;cursor:pointer;}"
+      ".btn:hover{background:#0056b3;}"
+      ".effect-btn{background:#28a745;}"
+      ".effect-btn:hover{background:#1e7e34;}"
+      ".status{background:#e9ecef;padding:10px;margin:10px 0;border-radius:5px;}"
+      "</style></head>"
+      "<body><div class=\"container\">"
+      "<h1>Outtatimers Controller</h1>"
+      "<div class=\"status\"><h3>Status: Connected to WiFi</h3><p><strong>IP:</strong> %s</p><div id=\"batteryStatus\"></div></div>"
+      "<h3>Effect Control</h3>"
+      "<button class=\"btn effect-btn\" onclick=\"setEffect(0)\">Solid</button>"
+      "<button class=\"btn effect-btn\" onclick=\"setEffect(1)\">Rainbow</button>"
+      "<button class=\"btn effect-btn\" onclick=\"setEffect(2)\">Pulse</button>"
+      "<button class=\"btn effect-btn\" onclick=\"setEffect(3)\">Chase</button>"
+      "<button class=\"btn effect-btn\" onclick=\"setEffect(4)\">Twinkle</button>"
+      "<button class=\"btn effect-btn\" onclick=\"setEffect(5)\">Fire</button>"
+      "<h3>Brightness</h3>"
+      "<input type=\"range\" id=\"brightness\" min=\"0\" max=\"255\" value=\"128\" onchange=\"setBrightness(this.value)\">"
+      "<span id=\"brightnessValue\">128</span>"
+      "<div class=\"status\" id=\"response\"></div>"
+      "</div>"
+      "<script>"
+      "function setEffect(effect){"
+      "fetch('/effect?effect='+effect)"
+      ".then(response=>response.text())"
+      ".then(data=>{document.getElementById('response').innerHTML='<p>Effect: '+data+'</p>';})"
+      ".catch(error=>{document.getElementById('response').innerHTML='<p>Error: '+error+'</p>';});"
+      "}"
+      "function setBrightness(value){"
+      "document.getElementById('brightnessValue').textContent=value;"
+      "fetch('/brightness?value='+value)"
+      ".then(response=>response.text())"
+      ".then(data=>{document.getElementById('response').innerHTML='<p>Brightness: '+data+'</p>';})"
+      ".catch(error=>{document.getElementById('response').innerHTML='<p>Error: '+error+'</p>';});"
+      "}"
+      "function updateBatteryStatus(){"
+      "fetch('/battery')"
+      ".then(response=>response.text())"
+      ".then(data=>{document.getElementById('batteryStatus').innerHTML='<p>Battery: '+data.replace(/\\n/g,'<br>')+'</p>';})"
+      ".catch(error=>{document.getElementById('batteryStatus').innerHTML='<p>Battery: Error reading status</p>';});"
+      "}"
+      "setInterval(updateBatteryStatus,5000);" // Update battery status every 5 seconds
+      "</script></body></html>";
 
-        <h3>Effect Control</h3>
-        <button class="btn effect-btn" onclick="setEffect(0)">Solid Color</button>
-        <button class="btn effect-btn" onclick="setEffect(1)">Rainbow Cycle</button>
-        <button class="btn effect-btn" onclick="setEffect(2)">Pulse</button>
-        <button class="btn effect-btn" onclick="setEffect(3)">Chase</button>
-        <button class="btn effect-btn" onclick="setEffect(4)">Twinkle</button>
-        <button class="btn effect-btn" onclick="setEffect(5)">Fire</button>
+  // Use a smaller buffer since we optimized the HTML
+  char response[4096];
+  int ret = snprintf(response, sizeof(response), html_template, self->get_ip_address().c_str());
 
-        <h3>Brightness Control</h3>
-        <input type="range" id="brightness" min="0" max="255" value="128" onchange="setBrightness(this.value)">
-        <span id="brightnessValue">128</span>
-
-        <div class="status" id="response"></div>
-    </div>
-
-    <script>
-        function setEffect(effect) {
-            fetch('/effect?effect=' + effect)
-                .then(response => response.text())
-                .then(data => {
-                    document.getElementById('response').innerHTML = '<p>Effect changed: ' + data + '</p>';
-                })
-                .catch(error => {
-                    document.getElementById('response').innerHTML = '<p>Error: ' + error + '</p>';
-                });
-        }
-
-        function setBrightness(value) {
-            document.getElementById('brightnessValue').textContent = value;
-            fetch('/brightness?value=' + value)
-                .then(response => response.text())
-                .then(data => {
-                    document.getElementById('response').innerHTML = '<p>Brightness set: ' + data + '</p>';
-                })
-                .catch(error => {
-                    document.getElementById('response').innerHTML = '<p>Error: ' + error + '</p>';
-                });
-        }
-    </script>
-</body>
-</html>)html";
-
-  char response[8192];
-  snprintf(response, sizeof(response), html, self->get_ip_address().c_str());
+  if (ret < 0 || ret >= sizeof(response))
+  {
+    httpd_resp_send_500(req);
+    return ESP_FAIL;
+  }
 
   httpd_resp_set_type(req, "text/html");
   httpd_resp_send(req, response, HTTPD_RESP_USE_STRLEN);
@@ -412,10 +422,30 @@ esp_err_t WiFiInputSource::handle_status(httpd_req_t *req)
   status += "  GET / - Web interface\n";
   status += "  GET /effect?effect=0-5 - Change effect\n";
   status += "  GET /brightness?value=0-255 - Set brightness\n";
+  status += "  GET /battery - Battery status\n";
   status += "  GET /status - This status\n";
 
   httpd_resp_set_type(req, "text/plain");
   httpd_resp_send(req, status.c_str(), HTTPD_RESP_USE_STRLEN);
+
+  return ESP_OK;
+}
+
+esp_err_t WiFiInputSource::handle_battery(httpd_req_t *req)
+{
+  WiFiInputSource *self = (WiFiInputSource *)req->user_ctx;
+
+  // TODO: Access actual battery voltage/percentage from main application
+  // For now, return feature status
+  std::string battery = "Battery Monitoring Active\n";
+  battery += "ADC Channel: Configured on GPIO0\n";
+  battery += "Voltage Divider: 2.0x ratio\n";
+  battery += "Range: 3.0V - 4.2V\n";
+  battery += "Note: Connect battery to BAT+ and BAT- pins\n";
+  battery += "Status: Monitoring every 5 seconds\n";
+
+  httpd_resp_set_type(req, "text/plain");
+  httpd_resp_send(req, battery.c_str(), HTTPD_RESP_USE_STRLEN);
 
   return ESP_OK;
 }
