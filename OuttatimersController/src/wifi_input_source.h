@@ -58,7 +58,7 @@ public:
    */
   explicit WiFiInputSource(int port = ControllerConfig::WiFi::HTTP_PORT)
       : server_handle_(nullptr), eventQueueHead_(0), eventQueueTail_(0), isConnected_(false),
-        connectionStartTime_(0), inAPMode_(false), apServerStarted_(false), timeoutLogged_(false) {}
+        connectionStartTime_(0), inAPMode_(false), apServerStarted_(false), timeoutLogged_(false), wifiStarted_(false) {}
 
   /**
    * @brief Initialize WiFi hardware (NVS, event loop, etc.) without connecting
@@ -97,6 +97,7 @@ public:
   bool inAPMode_;
   bool apServerStarted_;
   bool timeoutLogged_;
+  bool wifiStarted_;
 
   // WiFi event handler
   static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);

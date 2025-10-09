@@ -381,6 +381,12 @@ bool WiFiInputSource::init()
 
 bool WiFiInputSource::startConnection(const char *ssid, const char *password)
 {
+  if (wifiStarted_)
+  {
+    ESP_LOGI(TAG, "WiFi already started, skipping...");
+    return true;
+  }
+
   ESP_LOGI(TAG, "Starting WiFi connection...");
 
   // Start WiFi station
@@ -389,6 +395,7 @@ bool WiFiInputSource::startConnection(const char *ssid, const char *password)
   // Setup web server
   ESP_ERROR_CHECK(setup_web_server());
 
+  wifiStarted_ = true;
   return true;
 }
 
@@ -413,6 +420,7 @@ void WiFiInputSource::stopConnection()
 
   esp_wifi_stop();
   inAPMode_ = false;
+  wifiStarted_ = false;
 
   // Reset connection state
   connectionStartTime_ = 0;
