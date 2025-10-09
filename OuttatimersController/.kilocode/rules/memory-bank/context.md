@@ -69,12 +69,14 @@
 
 ### Power Management System
 
-- **IMPLEMENTED**: Deep sleep functionality with 3-second button hold
+- **IMPLEMENTED**: Light sleep functionality with 3-second button hold
 
-  - Button2 hold for 3+ seconds activates deep sleep mode
-  - WiFi disconnect and complete system shutdown before sleep
-  - 10-second timer wake-up for ESP32-C6 compatibility
-  - Complete system restart on wake-up with all settings preserved
+  - Button2 hold for 3+ seconds activates light sleep mode
+  - WiFi disconnect and system shutdown before sleep
+  - Button wake-up only (timer wake-up removed)
+  - System restart on wake-up with all settings preserved
+
+- **REMOVED**: 10-minute autosleep when LEDs are off - functionality disabled
 
 - **INTEGRATED**: Intelligent WiFi management with visual feedback
   - WiFi only connects when WiFi Mode effect is active and LEDs are on
@@ -89,7 +91,7 @@
 - **Effect Count**: ✅ 5 effects (Rotating Darkness, Portal Open, Battery Status, Random Blink, WiFi Mode)
 - **User Experience**: ✅ Intuitive button layout with dramatic default effect
 - **Battery Monitoring**: ✅ Visual battery status integrated with LED system
-- **Power Management**: ✅ Deep sleep with 3-second hold activation and 10-minute autosleep when LEDs off
+- **Power Management**: ✅ Light sleep with 3-second hold activation, 10-minute autosleep removed
 - **WiFi Management**: ✅ Intelligent WiFi-only operation with status feedback
 - **LED Configuration**: ✅ Flexible 8-LED setup with LED mirroring (8 and 9 behave as one)
 

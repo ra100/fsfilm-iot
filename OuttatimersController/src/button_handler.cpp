@@ -146,7 +146,7 @@ ButtonState ButtonHandler::getButton2State(int64_t currentTime)
         if (pressDuration > DEEP_SLEEP_THRESHOLD_US)
         {
           button2PressStart_ = 0;
-          return ButtonState::DeepSleep;
+          return ButtonState::LightSleep;
         }
         else if (pressDuration > LONG_PRESS_THRESHOLD_US)
         {

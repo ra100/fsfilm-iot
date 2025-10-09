@@ -28,7 +28,7 @@ namespace ControllerConfig
 
     // Button pin assignments
     constexpr int BUTTON1_PIN = 23; // GPIO23 (D5) - Effect cycle button
-    constexpr int BUTTON2_PIN = 16; // GPIO16 (D6) - Effect intensity/modifier button
+    constexpr int BUTTON2_PIN = 1;  // GPIO1 (D1) - Effect intensity/modifier button
   }
 
   // Timing Configuration
@@ -67,7 +67,7 @@ namespace ControllerConfig
     constexpr uint8_t NORMAL_BRIGHTNESS = 128;                // Normal brightness (0-255)
     constexpr unsigned long LED_UPDATE_INTERVAL_MS = 50;      // LED update interval (slower = more power save)
     constexpr unsigned long HEARTBEAT_INTERVAL_MS = 3000;     // Heartbeat interval (longer = more power save)
-    constexpr bool ENABLE_SLEEP_MODE = true;                  // Enable automatic sleep when LEDs off
+    constexpr bool ENABLE_SLEEP_MODE = false;                 // Enable automatic sleep when LEDs off
     constexpr unsigned long AUTOSLEEP_TIMEOUT_US = 600000000; // 10 minutes in microseconds
   }
 

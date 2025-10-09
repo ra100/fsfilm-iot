@@ -16,7 +16,7 @@ enum class ButtonState
   Released,
   Pressed,
   LongPress,
-  DeepSleep // 3-second hold for power saving
+  LightSleep // 3-second hold for power saving
 };
 
 /**

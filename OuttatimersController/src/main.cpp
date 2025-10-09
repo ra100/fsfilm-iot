@@ -37,8 +37,7 @@ float batteryVoltage = 0.0f;
 int batteryPercentage = 0; // Global variable accessible by effects
 int64_t lastBatteryRead = 0;
 
-// Autosleep state
-int64_t ledsTurnedOffTime = 0; // Timestamp when LEDs were last turned off
+// Sleep functionality removed - no autosleep state needed
 
 // ADC calibration handle
 adc_oneshot_unit_handle_t adc1_handle;
@@ -54,9 +53,9 @@ static const char *TAG = "outtatimers";
 void main_task(void *pvParameter);
 
 // Power management functions
-void enterDeepSleep()
+void enterLightSleep()
 {
-  ESP_LOGI(TAG, "Entering deep sleep mode for battery conservation...");
+  ESP_LOGI(TAG, "Entering light sleep mode for battery conservation...");
 
   // Disconnect from WiFi if connected
   if (wifiInput.isConnected_)
@@ -77,16 +76,12 @@ void enterDeepSleep()
   // Turn off onboard LED
   gpio_set_level((gpio_num_t)ControllerConfig::Hardware::ONBOARD_LED_PIN, 0);
 
-  ESP_LOGI(TAG, "WiFi disconnected, LEDs off - entering deep sleep");
+  ESP_LOGI(TAG, "WiFi disconnected, LEDs off - entering light sleep");
 
-  // Configure wake-up using timer (ESP32-C6 compatible method)
-  ESP_LOGI(TAG, "Configuring timer wake-up (10 seconds) for testing");
-  ESP_ERROR_CHECK(esp_sleep_enable_timer_wakeup(10 * 1000000)); // Wake up after 10 seconds for testing
+  ESP_LOGI(TAG, "Light sleep configured - press Button2 to wake up");
 
-  ESP_LOGI(TAG, "Deep sleep configured - press Button2 to wake up");
-
-  // Enter deep sleep
-  esp_deep_sleep_start();
+  // Enter light sleep
+  esp_light_sleep_start();
 }
 
 // Battery monitoring functions
@@ -315,20 +310,12 @@ void main_task(void *pvParameter)
           {
             effectManager.toggleLeds();
             ESP_LOGI(TAG, "Button2 pressed - LEDs %s", effectManager.areLedsOn() ? "ON" : "OFF");
-            if (!effectManager.areLedsOn())
-            {
-              ledsTurnedOffTime = currentTime;
-              ESP_LOGI(TAG, "LEDs turned off - autosleep timer started");
-            }
-            else
-            {
-              ledsTurnedOffTime = 0; // Reset timer when LEDs are turned on
-            }
+            // Autosleep removed - no timer needed
           }
-          else if (buttonEvent.state == ButtonState::DeepSleep)
+          else if (buttonEvent.state == ButtonState::LightSleep)
           {
-            ESP_LOGI(TAG, "Button2 held for 3 seconds - triggering deep sleep");
-            enterDeepSleep();
+            ESP_LOGI(TAG, "Button2 held for 3 seconds - triggering light sleep");
+            enterLightSleep();
           }
         }
       }
@@ -367,15 +354,7 @@ void main_task(void *pvParameter)
     // Update battery status periodically
     updateBatteryStatus();
 
-    // Check for autosleep if enabled and LEDs are off
-    if (ControllerConfig::Power::ENABLE_SLEEP_MODE && !effectManager.areLedsOn() && ledsTurnedOffTime > 0)
-    {
-      if (currentTime - ledsTurnedOffTime >= ControllerConfig::Power::AUTOSLEEP_TIMEOUT_US)
-      {
-        ESP_LOGI(TAG, "Autosleep timeout reached (10 minutes) - entering deep sleep");
-        enterDeepSleep();
-      }
-    }
+    // Autosleep disabled - removed 10-minute timeout functionality
 
     // Update current effect
     effectManager.update(currentTime);
