@@ -58,7 +58,7 @@
 
 - **LED Refresh Rate**: FastLED optimized for 30-60 FPS animations
 - **Memory Management**: Careful allocation to avoid fragmentation on limited RAM
-- **Power Optimization**: Sleep modes and LED brightness control for battery life
+- **Power Optimization**: Sleep modes, LED brightness control, and 10-minute autosleep when LEDs off for battery life
 - **Wi-Fi Management**: Connection handling to minimize power draw when not in use
 
 ## Future Technical Enhancements

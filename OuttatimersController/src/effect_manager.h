@@ -84,6 +84,26 @@ private:
   {
     return ControllerConfig::Effects::ACTIVE_LEDS[logicalIndex];
   }
+
+  /**
+   * @brief Set LED with special handling for LEDs 8 and 9 behaving as one
+   * @param driver LED driver instance
+   * @param logicalIndex Logical LED index
+   * @param color Color to set
+   */
+  void setLedWithDualControl(ILEDDriver &driver, size_t logicalIndex, uint32_t color) const
+  {
+    if (logicalIndex == ControllerConfig::Effects::ACTIVE_LED_COUNT - 1)
+    {
+      // Last logical LED controls both physical LEDs 8 and 9
+      driver.setPixel(8, color); // Physical LED 8
+      driver.setPixel(9, color); // Physical LED 9
+    }
+    else
+    {
+      driver.setPixel(logicalToPhysical(logicalIndex), color);
+    }
+  }
 };
 
 /**
@@ -116,7 +136,7 @@ private:
   static constexpr uint32_t COLOR_PORTAL_GRB = makeColor(10, 30, 250); // Full brightness purple
 
   // Dimmed purple for buildup LEDs (80% brightness)
-  static constexpr uint32_t COLOR_PORTAL_DIM_GRB = makeColor(10, 30, 250, 0.8f); // 80% brightness purple
+  static constexpr uint32_t COLOR_PORTAL_DIM_GRB = makeColor(10, 30, 250); // 80% brightness purple
 
   /**
    * @brief Convert logical LED index to physical LED index
@@ -168,6 +188,26 @@ private:
   }
 
   /**
+   * @brief Set LED with special handling for LEDs 8 and 9 behaving as one
+   * @param driver LED driver instance
+   * @param logicalIndex Logical LED index
+   * @param color Color to set
+   */
+  void setLedWithDualControl(ILEDDriver &driver, size_t logicalIndex, uint32_t color) const
+  {
+    if (logicalIndex == ControllerConfig::Effects::ACTIVE_LED_COUNT - 1)
+    {
+      // Last logical LED controls both physical LEDs 8 and 9
+      driver.setPixel(8, color); // Physical LED 8
+      driver.setPixel(9, color); // Physical LED 9
+    }
+    else
+    {
+      driver.setPixel(logicalToPhysical(logicalIndex), color);
+    }
+  }
+
+  /**
    * @brief Calculate how many LEDs should be lit based on battery percentage
    * @param batteryPercentage Battery level (0-100)
    * @return Number of LEDs to light (1-7)
@@ -207,10 +247,10 @@ public:
   const char *getName() const override { return "Random Blink"; }
 
 private:
-  static constexpr uint32_t EFFECT_DURATION_US = 15 * 1000000; // 15 seconds in microseconds
-  static constexpr uint32_t BLINK_INTERVAL_MS = 200;           // Blink every 200ms
-  static constexpr size_t MAX_ACTIVE_LEDS = 2;                 // Maximum 2 LEDs on at once
-  static constexpr size_t FIRST_LED_INDEX = 1;                 // Start from LED 1, skip LED 0
+  static constexpr uint32_t EFFECT_DURATION_US = 5 * 1000000; // 15 seconds in microseconds
+  static constexpr uint32_t BLINK_INTERVAL_MS = 200;          // Blink every 200ms
+  static constexpr size_t MAX_ACTIVE_LEDS = 2;                // Maximum 2 LEDs on at once
+  static constexpr size_t FIRST_LED_INDEX = 1;                // Start from LED 1, skip LED 0
 
   int64_t startTime_;
   bool isRunning_;
@@ -229,6 +269,26 @@ private:
   uint8_t logicalToPhysical(size_t logicalIndex) const
   {
     return ControllerConfig::Effects::ACTIVE_LEDS[logicalIndex];
+  }
+
+  /**
+   * @brief Set LED with special handling for LEDs 8 and 9 behaving as one
+   * @param driver LED driver instance
+   * @param logicalIndex Logical LED index
+   * @param color Color to set
+   */
+  void setLedWithDualControl(ILEDDriver &driver, size_t logicalIndex, uint32_t color) const
+  {
+    if (logicalIndex == ControllerConfig::Effects::ACTIVE_LED_COUNT - 1)
+    {
+      // Last logical LED controls both physical LEDs 8 and 9
+      driver.setPixel(8, color); // Physical LED 8
+      driver.setPixel(9, color); // Physical LED 9
+    }
+    else
+    {
+      driver.setPixel(logicalToPhysical(logicalIndex), color);
+    }
   }
 
   /**
@@ -313,7 +373,7 @@ private:
 class WiFiModeEffect : public ILEDEffect
 {
 public:
-  WiFiModeEffect() : lastUpdateTime_(0), blinkState_(false) {}
+  WiFiModeEffect() : lastUpdateTime_(0), blinkState_(false), connectionAttempted_(false), connectionStartTime_(0) {}
 
   void begin(ILEDDriver &driver) override;
   void update(ILEDDriver &driver, int64_t currentTime) override;
@@ -323,6 +383,8 @@ public:
 private:
   int64_t lastUpdateTime_;
   bool blinkState_;
+  bool connectionAttempted_;
+  int64_t connectionStartTime_;
 
   // Color definitions using helper function
   static constexpr uint32_t COLOR_BLUE_GRB = makeColor(0, 0, 255); // Blue for WiFi status

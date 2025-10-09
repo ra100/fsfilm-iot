@@ -1,4 +1,5 @@
 #include "effect_manager.h"
+#include "wifi_input_source.h"
 #include <esp_log.h>
 
 // Global battery percentage variable accessible by effects
@@ -7,6 +8,9 @@ extern int batteryPercentage;
 // Global WiFi state variable accessible by effects
 extern int wifiState;
 
+// Global WiFi input source
+extern WiFiInputSource wifiInput;
+
 // WiFiModeEffect implementation
 
 void WiFiModeEffect::begin(ILEDDriver &driver)
@@ -14,13 +18,27 @@ void WiFiModeEffect::begin(ILEDDriver &driver)
   ESP_LOGI("WiFiMode", "Starting WiFi mode effect");
   lastUpdateTime_ = esp_timer_get_time();
   blinkState_ = false;
+  connectionAttempted_ = false;
 
-  // Initial display update
+  // Start WiFi connection
+  wifiInput.startConnection(WIFI_SSID, WIFI_PASSWORD);
+  connectionStartTime_ = esp_timer_get_time();
+
+  // Initial display update (will show connecting state)
   updateWiFiStatusDisplay(driver);
 }
 
 void WiFiModeEffect::update(ILEDDriver &driver, int64_t currentTime)
 {
+  // Check for connection timeout (30 seconds)
+  if (!wifiInput.isConnected_ && !connectionAttempted_ &&
+      (currentTime - connectionStartTime_) > 30000000) // 30 seconds in microseconds
+  {
+    ESP_LOGI("WiFiMode", "WiFi connection timeout - no connection established");
+    connectionAttempted_ = true;
+    wifiState = 0; // Disconnected state
+  }
+
   // Update display every 500ms for blinking effects
   if (currentTime - lastUpdateTime_ >= 500000) // 500ms in microseconds
   {
@@ -37,6 +55,9 @@ void WiFiModeEffect::update(ILEDDriver &driver, int64_t currentTime)
 void WiFiModeEffect::end(ILEDDriver &driver)
 {
   ESP_LOGI("WiFiMode", "Ending WiFi mode effect");
+
+  // Stop WiFi connection
+  wifiInput.stopConnection();
 
   // Turn off all LEDs
   driver.clear();

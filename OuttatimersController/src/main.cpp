@@ -37,6 +37,9 @@ float batteryVoltage = 0.0f;
 int batteryPercentage = 0; // Global variable accessible by effects
 int64_t lastBatteryRead = 0;
 
+// Autosleep state
+int64_t ledsTurnedOffTime = 0; // Timestamp when LEDs were last turned off
+
 // ADC calibration handle
 adc_oneshot_unit_handle_t adc1_handle;
 adc_cali_handle_t adc1_cali_handle = NULL;
@@ -236,9 +239,9 @@ extern "C" void app_main(void)
   effectManager.begin();
   ESP_LOGI(TAG, "Effect manager initialized with purple chase as default effect");
 
-  // Initialize WiFi input source
-  wifiInput.begin(WIFI_SSID, WIFI_PASSWORD);
-  ESP_LOGI(TAG, "WiFi input source initialized");
+  // Initialize WiFi input source (hardware only, no connection)
+  wifiInput.init();
+  ESP_LOGI(TAG, "WiFi input source initialized (hardware only)");
 
   // Initialize button handler
   buttonHandler.begin();
@@ -312,6 +315,15 @@ void main_task(void *pvParameter)
           {
             effectManager.toggleLeds();
             ESP_LOGI(TAG, "Button2 pressed - LEDs %s", effectManager.areLedsOn() ? "ON" : "OFF");
+            if (!effectManager.areLedsOn())
+            {
+              ledsTurnedOffTime = currentTime;
+              ESP_LOGI(TAG, "LEDs turned off - autosleep timer started");
+            }
+            else
+            {
+              ledsTurnedOffTime = 0; // Reset timer when LEDs are turned on
+            }
           }
           else if (buttonEvent.state == ButtonState::DeepSleep)
           {
@@ -354,6 +366,16 @@ void main_task(void *pvParameter)
 
     // Update battery status periodically
     updateBatteryStatus();
+
+    // Check for autosleep if enabled and LEDs are off
+    if (ControllerConfig::Power::ENABLE_SLEEP_MODE && !effectManager.areLedsOn() && ledsTurnedOffTime > 0)
+    {
+      if (currentTime - ledsTurnedOffTime >= ControllerConfig::Power::AUTOSLEEP_TIMEOUT_US)
+      {
+        ESP_LOGI(TAG, "Autosleep timeout reached (10 minutes) - entering deep sleep");
+        enterDeepSleep();
+      }
+    }
 
     // Update current effect
     effectManager.update(currentTime);

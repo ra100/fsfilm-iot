@@ -67,6 +67,15 @@ void RmtLedDriver::setPixel(int idx, uint32_t color)
   if (idx >= 0 && idx < numPixels_)
   {
     pixelBuffer_[idx] = applyBrightness(color);
+    // Mirror LEDs 8 and 9 to behave as one
+    if (idx == 8)
+    {
+      pixelBuffer_[9] = applyBrightness(color);
+    }
+    else if (idx == 9)
+    {
+      pixelBuffer_[8] = applyBrightness(color);
+    }
   }
 }
 
@@ -207,6 +216,15 @@ void NeoPixelDriver::setPixel(int idx, uint32_t color)
   if (idx >= 0 && idx < numPixels_)
   {
     pixelBuffer_[idx] = applyBrightness(color);
+    // Mirror LEDs 8 and 9 to behave as one
+    if (idx == 8)
+    {
+      pixelBuffer_[9] = applyBrightness(color);
+    }
+    else if (idx == 9)
+    {
+      pixelBuffer_[8] = applyBrightness(color);
+    }
   }
 }
 

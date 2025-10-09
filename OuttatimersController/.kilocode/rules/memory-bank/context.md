@@ -24,7 +24,7 @@
 ### Hardware Configuration & Control
 
 - **CONFIGURED**: Flexible LED selection system using ACTIVE_LEDS array
-  - Currently using LEDs: 2,3,4,6,7,8,9 (7 LEDs, skipping problematic positions)
+  - Currently using LEDs: 1,2,3,5,6,7,8,9 (8 LEDs, with 8 and 9 behaving as one)
   - Easy to modify for different hardware layouts
   - Logical-to-physical LED mapping for clean effect implementation
 - **RECONFIGURED**: Button control scheme for improved user experience
@@ -49,21 +49,23 @@
 
 **Rainbow Debug Effect Results (2025-10-08):**
 
-- **Logical 0** → Physical LED2: **Green** (GRB: 0x00FF0000)
-- **Logical 1** → Physical LED3: **Yellow** (GRB: 0xFF800000)
-- **Logical 2** → Physical LED4: **Orange** (GRB: 0xFFFF8000)
-- **Logical 3** → Physical LED6: **Red** (GRB: 0x80000000)
-- **Logical 4** → Physical LED7: **Blue** ✓ (GRB: 0xFF0000FF)
-- **Logical 5** → Physical LED8: **Indigo** ✓ (GRB: 0xFF0080FF)
-- **Logical 6** → Physical LED9: **Violet** ✓ (GRB: 0xFF00FF80)
+- **Logical 0** → Physical LED1: **Red** (GRB: 0x80000000)
+- **Logical 1** → Physical LED2: **Orange** (GRB: 0xFFFF8000)
+- **Logical 2** → Physical LED3: **Yellow** (GRB: 0xFF800000)
+- **Logical 3** → Physical LED5: **Green** (GRB: 0x00FF0000)
+- **Logical 4** → Physical LED6: **Blue** ✓ (GRB: 0xFF0000FF)
+- **Logical 5** → Physical LED7: **Indigo** ✓ (GRB: 0xFF0080FF)
+- **Logical 6** → Physical LED8: **Violet** ✓ (GRB: 0xFF00FF80)
+- **Logical 7** → Physical LED9: **Violet** ✓ (GRB: 0xFF00FF80) (mirrored with LED8)
 
 **Color System Analysis:**
 
 - **GRB format confirmed working** - LEDs respond to color values
 - **Primary colors accurate** - Red, Green, Blue display as expected
 - **Secondary colors need calibration** - Orange, Yellow, Indigo, Violet require adjustment
-- **All 7 LEDs functional** - Physical layout confirmed: LEDs 2,3,4,6,7,8,9
+- **All 8 LEDs functional** - Physical layout confirmed: LEDs 1,2,3,5,6,7,8,9 with 8 and 9 mirrored
 - **Brightness control verified** - 80% dimming working correctly
+- **LED mirroring implemented** - Physical LEDs 8 and 9 now behave as one unit
 
 ### Power Management System
 
@@ -87,9 +89,9 @@
 - **Effect Count**: ✅ 5 effects (Rotating Darkness, Portal Open, Battery Status, Random Blink, WiFi Mode)
 - **User Experience**: ✅ Intuitive button layout with dramatic default effect
 - **Battery Monitoring**: ✅ Visual battery status integrated with LED system
-- **Power Management**: ✅ Deep sleep with 3-second hold activation
+- **Power Management**: ✅ Deep sleep with 3-second hold activation and 10-minute autosleep when LEDs off
 - **WiFi Management**: ✅ Intelligent WiFi-only operation with status feedback
-- **LED Configuration**: ✅ Flexible 7-LED setup with easy modification capability
+- **LED Configuration**: ✅ Flexible 8-LED setup with LED mirroring (8 and 9 behave as one)
 
 ## Previous Work
 

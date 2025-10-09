@@ -10,6 +10,7 @@ set(SOURCES
     "led_driver.cpp"
     "effect_manager.cpp"
     "button_handler.cpp"
+    "wifi_input_source.cpp"
 )
 
 # Register the component with required dependencies
