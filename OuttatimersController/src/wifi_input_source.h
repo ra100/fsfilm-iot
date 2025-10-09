@@ -283,12 +283,11 @@ esp_err_t WiFiInputSource::handle_root(httpd_req_t *req)
       "<h1>Outtatimers Controller</h1>"
       "<div class=\"status\"><h3>Status: Connected to WiFi</h3><p><strong>IP:</strong> %s</p><div id=\"batteryStatus\"></div></div>"
       "<h3>Effect Control</h3>"
-      "<button class=\"btn effect-btn\" onclick=\"setEffect(0)\">Solid</button>"
-      "<button class=\"btn effect-btn\" onclick=\"setEffect(1)\">Rainbow</button>"
-      "<button class=\"btn effect-btn\" onclick=\"setEffect(2)\">Pulse</button>"
-      "<button class=\"btn effect-btn\" onclick=\"setEffect(3)\">Chase</button>"
-      "<button class=\"btn effect-btn\" onclick=\"setEffect(4)\">Twinkle</button>"
-      "<button class=\"btn effect-btn\" onclick=\"setEffect(5)\">Fire</button>"
+      "<button class=\"btn effect-btn\" onclick=\"setEffect(0)\">Rotating Darkness</button>"
+      "<button class=\"btn effect-btn\" onclick=\"setEffect(1)\">Portal Open</button>"
+      "<button class=\"btn effect-btn\" onclick=\"setEffect(2)\">Battery Status</button>"
+      "<button class=\"btn effect-btn\" onclick=\"setEffect(3)\">Random Blink</button>"
+      "<button class=\"btn effect-btn\" onclick=\"setEffect(4)\">WiFi Mode</button>"
       "<h3>Brightness</h3>"
       "<input type=\"range\" id=\"brightness\" min=\"0\" max=\"255\" value=\"128\" onchange=\"setBrightness(this.value)\">"
       "<span id=\"brightnessValue\">128</span>"
@@ -353,7 +352,7 @@ esp_err_t WiFiInputSource::handle_set_effect(httpd_req_t *req)
   }
 
   int effect = atoi(effect_str);
-  if (effect >= 0 && effect < 6)
+  if (effect >= 0 && effect < 5)
   {
     self->queue_event({.inputId = effect,
                        .type = EventType::Pressed,
@@ -366,7 +365,7 @@ esp_err_t WiFiInputSource::handle_set_effect(httpd_req_t *req)
   }
   else
   {
-    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid effect number (0-5)");
+    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid effect number (0-4)");
   }
 
   return ESP_OK;
@@ -465,17 +464,15 @@ std::string WiFiInputSource::get_effect_name(int effect)
   switch (effect)
   {
   case 0:
-    return "Solid Color";
+    return "Rotating Darkness";
   case 1:
-    return "Rainbow Cycle";
+    return "Portal Open";
   case 2:
-    return "Pulse";
+    return "Battery Status";
   case 3:
-    return "Chase";
+    return "Random Blink";
   case 4:
-    return "Twinkle";
-  case 5:
-    return "Fire";
+    return "WiFi Mode";
   default:
     return "Unknown";
   }
