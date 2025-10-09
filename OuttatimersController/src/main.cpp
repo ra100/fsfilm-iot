@@ -4,7 +4,9 @@
 #include <esp_system.h>
 #include <esp_timer.h>
 #include <driver/gpio.h>
-#include <driver/adc.h>
+#include <esp_adc/adc_oneshot.h>
+#include <esp_adc/adc_cali.h>
+#include <esp_adc/adc_cali_scheme.h>
 #include <esp_sleep.h>
 #include <esp_wifi.h>
 #include <esp_netif.h>
@@ -34,6 +36,10 @@ int64_t lastOnboardLedToggle = 0;
 float batteryVoltage = 0.0f;
 int batteryPercentage = 0; // Global variable accessible by effects
 int64_t lastBatteryRead = 0;
+
+// ADC calibration handle
+adc_oneshot_unit_handle_t adc1_handle;
+adc_cali_handle_t adc1_cali_handle = NULL;
 
 // WiFi state for effects
 int wifiState = 0; // 0: disconnected, 1: connecting, 2: connected, 3: AP mode
@@ -83,21 +89,47 @@ void enterDeepSleep()
 // Battery monitoring functions
 void initBatteryMonitoring()
 {
-  // Configure ADC for battery voltage monitoring
-  adc1_config_width(ADC_WIDTH_BIT_12); // 12-bit resolution
-  adc1_config_channel_atten((adc1_channel_t)ControllerConfig::Battery::VOLTAGE_PIN, ADC_ATTEN_DB_11);
+  // Initialize ADC oneshot unit
+  adc_oneshot_unit_init_cfg_t init_config = {
+      .unit_id = ADC_UNIT_1,
+      .ulp_mode = ADC_ULP_MODE_DISABLE,
+  };
+  ESP_ERROR_CHECK(adc_oneshot_new_unit(&init_config, &adc1_handle));
+
+  // Configure ADC channel
+  adc_oneshot_chan_cfg_t config = {
+      .atten = ADC_ATTEN_DB_12,
+      .bitwidth = ADC_BITWIDTH_12,
+  };
+  ESP_ERROR_CHECK(adc_oneshot_config_channel(adc1_handle, (adc_channel_t)ControllerConfig::Battery::VOLTAGE_PIN, &config));
+
+  // Initialize ADC calibration
+  adc_cali_curve_fitting_config_t cali_config = {
+      .unit_id = ADC_UNIT_1,
+      .atten = ADC_ATTEN_DB_12,
+      .bitwidth = ADC_BITWIDTH_12,
+  };
+  ESP_ERROR_CHECK(adc_cali_create_scheme_curve_fitting(&cali_config, &adc1_cali_handle));
 
   ESP_LOGI(TAG, "Battery monitoring initialized on GPIO %d (A%d/D%d)", ControllerConfig::Battery::VOLTAGE_PIN, ControllerConfig::Battery::VOLTAGE_PIN, ControllerConfig::Battery::VOLTAGE_PIN);
 }
 
 float readBatteryVoltage()
 {
-  // Read ADC value and convert to voltage
-  int adcValue = adc1_get_raw((adc1_channel_t)ControllerConfig::Battery::VOLTAGE_PIN);
+  int adc_raw;
+  int voltage_mv;
 
-  // Convert ADC reading to actual voltage
-  // ESP32-C6 ADC reference voltage is typically 1.1V internal, but calibrated to 3.3V range
-  float adcVoltage = (adcValue * 3.3f) / 4095.0f;
+  // Read ADC value
+  ESP_ERROR_CHECK(adc_oneshot_read(adc1_handle, (adc_channel_t)ControllerConfig::Battery::VOLTAGE_PIN, &adc_raw));
+
+  // Calibrate ADC reading to millivolts
+  ESP_ERROR_CHECK(adc_cali_raw_to_voltage(adc1_cali_handle, adc_raw, &voltage_mv));
+
+  // Debug: Log raw ADC value and calibrated voltage
+  ESP_LOGI(TAG, "Battery ADC raw value: %d, calibrated: %d mV", adc_raw, voltage_mv);
+
+  // Convert millivolts to volts
+  float adcVoltage = voltage_mv / 1000.0f;
 
   // Apply voltage divider ratio (battery voltage = ADC voltage * divider ratio)
   float actualVoltage = adcVoltage * ControllerConfig::Battery::VOLTAGE_DIVIDER_RATIO;

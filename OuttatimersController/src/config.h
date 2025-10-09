@@ -73,8 +73,8 @@ namespace ControllerConfig
   // Battery Monitoring Configuration
   namespace Battery
   {
-    constexpr int VOLTAGE_PIN = 0;                   // GPIO0 (A0/D0) - ADC for battery voltage
-    constexpr float VOLTAGE_DIVIDER_RATIO = 2.0f;    // Voltage divider ratio (R2/(R1+R2))
+    constexpr int VOLTAGE_PIN = 0;                   // GPIO0 (A0/D0) - ADC for battery voltage (XIAO ESP32C6 BAT+ pin)
+    constexpr float VOLTAGE_DIVIDER_RATIO = 2.0f;    // Voltage divider ratio (R2/(R1+R2)) - board has built-in divider
     constexpr float MIN_VOLTAGE = 3.0f;              // Minimum battery voltage (discharged)
     constexpr float MAX_VOLTAGE = 4.2f;              // Maximum battery voltage (fully charged)
     constexpr unsigned long READ_INTERVAL_MS = 5000; // Battery read interval (5 seconds)
