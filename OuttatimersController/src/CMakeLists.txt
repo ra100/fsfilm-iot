@@ -10,7 +10,6 @@ set(SOURCES
     "led_driver.cpp"
     "effect_manager.cpp"
     "button_handler.cpp"
-    "wifi_input_source.cpp"
 )
 
 # Register the component with required dependencies
@@ -21,10 +20,7 @@ idf_component_register(
         driver          # GPIO driver
         esp_timer       # High resolution timer
         freertos        # FreeRTOS
-        esp_wifi        # WiFi support
-        esp_http_server # HTTP server for web interface
         nvs_flash       # Non-volatile storage
-        lwip            # TCP/IP stack
 )
 
 # Component configuration

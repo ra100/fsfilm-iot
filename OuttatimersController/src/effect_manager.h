@@ -107,18 +107,18 @@ private:
 };
 
 /**
- * @brief Portal opening effect - sequential LED activation with buildup, climax, and cycling
+ * @brief Portal opening effect - runs once: sequential LED activation, climax, then stops
  *
  * Sequence:
  * 1. First 6 LEDs turn on one by one with 0.5s pauses (buildup phase)
- * 2. All 6 LEDs remain on (climax preparation)
- * 3. 7th LED turns on while first 6 turn off (portal climax)
- * 4. 7th LED stays on while single light cycles through first 6 LEDs (cycling phase)
+ * 2. 7th LED turns on (portal climax)
+ * 3. Wait 1 second
+ * 4. All LEDs turn off and effect stops (no repetition)
  */
 class PortalOpenEffect : public ILEDEffect
 {
 public:
-  PortalOpenEffect(uint32_t stepDurationMs = 500) : stepDurationMs_(stepDurationMs), lastStepTime_(0), currentPhase_(0), currentLed_(0) {}
+  PortalOpenEffect(uint32_t stepDurationMs = 500) : stepDurationMs_(stepDurationMs), lastStepTime_(0), currentPhase_(0), currentLed_(0), isComplete_(false) {}
 
   void begin(ILEDDriver &driver) override;
   void update(ILEDDriver &driver, int64_t currentTime) override;
@@ -128,8 +128,9 @@ public:
 private:
   uint32_t stepDurationMs_;
   int64_t lastStepTime_;
-  uint8_t currentPhase_; // 0: buildup, 1: climax prep, 2: climax, 3: cycling
+  uint8_t currentPhase_; // 0: buildup, 1: climax, 2: wait, 3: complete
   size_t currentLed_;    // Current LED in sequence
+  bool isComplete_;      // Whether the effect has completed its sequence
 
   // Color definitions using helper function
   // Purple color: Green=0, Red=75, Blue=250 (reddish-purple)
@@ -358,73 +359,6 @@ private:
 };
 
 /**
- * @brief WiFi mode effect - enables WiFi only when this effect is active and LEDs are on
- *
- * Features:
- * - Only connects to WiFi when this effect is selected and LEDs are on
- * - Disconnects WiFi when leaving this effect or turning LEDs off
- * - Dynamic visual feedback based on WiFi connection status:
- *   - Connecting: Blink 2 LEDs blue (searching for network)
- *   - Connected: 4 LEDs solid blue (successful connection)
- *   - AP Mode: Blink 6 LEDs blue (fallback access point mode)
- * - Power-efficient: WiFi only active when explicitly requested
- * - Real-time status updates with 500ms refresh rate
- */
-class WiFiModeEffect : public ILEDEffect
-{
-public:
-  WiFiModeEffect() : lastUpdateTime_(0), blinkState_(false), connectionAttempted_(false), connectionStartTime_(0) {}
-
-  void begin(ILEDDriver &driver) override;
-  void update(ILEDDriver &driver, int64_t currentTime) override;
-  void end(ILEDDriver &driver) override;
-  const char *getName() const override { return "WiFi Mode"; }
-
-private:
-  int64_t lastUpdateTime_;
-  bool blinkState_;
-  bool connectionAttempted_;
-  int64_t connectionStartTime_;
-
-  // Color definitions using helper function
-  static constexpr uint32_t COLOR_BLUE_GRB = makeColor(0, 0, 255); // Blue for WiFi status
-
-  /**
-   * @brief Convert logical LED index to physical LED index
-   * @param logicalIndex Logical index (0-6)
-   * @return Physical LED index from ACTIVE_LEDS array
-   */
-  uint8_t logicalToPhysical(size_t logicalIndex) const
-  {
-    return ControllerConfig::Effects::ACTIVE_LEDS[logicalIndex];
-  }
-
-  /**
-   * @brief Update LED display based on current WiFi status
-   * @param driver LED driver instance
-   */
-  void updateWiFiStatusDisplay(ILEDDriver &driver);
-
-  /**
-   * @brief Display connecting state (2 LEDs blinking blue)
-   * @param driver LED driver instance
-   */
-  void showConnectingState(ILEDDriver &driver);
-
-  /**
-   * @brief Display connected state (4 LEDs solid blue)
-   * @param driver LED driver instance
-   */
-  void showConnectedState(ILEDDriver &driver);
-
-  /**
-   * @brief Display AP mode state (6 LEDs blinking blue)
-   * @param driver LED driver instance
-   */
-  void showAPModeState(ILEDDriver &driver);
-};
-
-/**
  * @brief Effect manager to handle different LED effects and transitions
  */
 class EffectManager
@@ -448,7 +382,7 @@ public:
 
 private:
   ILEDDriver &driver_;
-  static constexpr uint8_t MAX_EFFECTS = 6;
+  static constexpr uint8_t MAX_EFFECTS = 5;
   std::unique_ptr<ILEDEffect> effects_[MAX_EFFECTS];
   uint8_t currentEffectIndex_;
   uint8_t effectCount_;

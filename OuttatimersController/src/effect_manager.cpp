@@ -1,142 +1,8 @@
 #include "effect_manager.h"
-#include "wifi_input_source.h"
 #include <esp_log.h>
 
 // Global battery percentage variable accessible by effects
 extern int batteryPercentage;
-
-// Global WiFi state variable accessible by effects
-extern int wifiState;
-
-// Global WiFi input source
-extern WiFiInputSource wifiInput;
-
-// WiFiModeEffect implementation
-
-void WiFiModeEffect::begin(ILEDDriver &driver)
-{
-  ESP_LOGI("WiFiMode", "Starting WiFi mode effect");
-  lastUpdateTime_ = esp_timer_get_time();
-  blinkState_ = false;
-  connectionAttempted_ = false;
-
-  // Start WiFi connection
-  wifiInput.startConnection(WIFI_SSID, WIFI_PASSWORD);
-  connectionStartTime_ = esp_timer_get_time();
-
-  // Initial display update (will show connecting state)
-  updateWiFiStatusDisplay(driver);
-}
-
-void WiFiModeEffect::update(ILEDDriver &driver, int64_t currentTime)
-{
-  // Check for connection timeout (30 seconds)
-  if (!wifiInput.isConnected_ && !connectionAttempted_ &&
-      (currentTime - connectionStartTime_) > 30000000) // 30 seconds in microseconds
-  {
-    ESP_LOGI("WiFiMode", "WiFi connection timeout - no connection established");
-    connectionAttempted_ = true;
-    wifiState = 0; // Disconnected state
-  }
-
-  // Update display every 500ms for blinking effects
-  if (currentTime - lastUpdateTime_ >= 500000) // 500ms in microseconds
-  {
-    // Toggle blink state for blinking modes
-    blinkState_ = !blinkState_;
-
-    // Update display based on current WiFi status
-    updateWiFiStatusDisplay(driver);
-
-    lastUpdateTime_ = currentTime;
-  }
-}
-
-void WiFiModeEffect::end(ILEDDriver &driver)
-{
-  ESP_LOGI("WiFiMode", "Ending WiFi mode effect");
-
-  // Stop WiFi connection
-  wifiInput.stopConnection();
-
-  // Turn off all LEDs
-  driver.clear();
-  driver.show();
-}
-
-void WiFiModeEffect::updateWiFiStatusDisplay(ILEDDriver &driver)
-{
-  // Clear all LEDs first
-  for (size_t i = 0; i < ControllerConfig::Effects::ACTIVE_LED_COUNT; i++)
-  {
-    driver.setPixel(logicalToPhysical(i), 0);
-  }
-
-  // Check real WiFi connection status and display appropriate pattern
-  switch (wifiState)
-  {
-  case 0: // Disconnected
-    // No LEDs on - indicates WiFi is disconnected
-    ESP_LOGI("WiFiMode", "Real: Disconnected state (no LEDs)");
-    break;
-  case 1: // Connecting
-    showConnectingState(driver);
-    ESP_LOGI("WiFiMode", "Real: Connecting state (2 LEDs blinking)");
-    break;
-  case 2: // Connected
-    showConnectedState(driver);
-    ESP_LOGI("WiFiMode", "Real: Connected state (4 LEDs solid)");
-    break;
-  case 3: // AP Mode
-    if (blinkState_)
-    {
-      showAPModeState(driver);
-      ESP_LOGI("WiFiMode", "Real: AP mode state (6 LEDs blinking)");
-    }
-    else
-    {
-      // Turn off for blinking effect
-      driver.show();
-    }
-    break;
-  default:
-    ESP_LOGI("WiFiMode", "Unknown WiFi state: %d", wifiState);
-    break;
-  }
-
-  driver.show();
-}
-
-void WiFiModeEffect::showConnectingState(ILEDDriver &driver)
-{
-  if (blinkState_)
-  {
-    // Turn on 2 LEDs for connecting state
-    driver.setPixel(logicalToPhysical(0), COLOR_BLUE_GRB);
-    driver.setPixel(logicalToPhysical(1), COLOR_BLUE_GRB);
-  }
-  driver.show();
-}
-
-void WiFiModeEffect::showConnectedState(ILEDDriver &driver)
-{
-  // Turn on 4 LEDs for connected state (solid, no blinking)
-  for (size_t i = 0; i < 4; i++)
-  {
-    driver.setPixel(logicalToPhysical(i), COLOR_BLUE_GRB);
-  }
-  driver.show();
-}
-
-void WiFiModeEffect::showAPModeState(ILEDDriver &driver)
-{
-  // Turn on 6 LEDs for AP mode (blinking)
-  for (size_t i = 0; i < 6; i++)
-  {
-    driver.setPixel(logicalToPhysical(i), COLOR_BLUE_GRB);
-  }
-  driver.show();
-}
 
 // RandomBlinkEffect implementation
 
@@ -331,6 +197,7 @@ void PortalOpenEffect::begin(ILEDDriver &driver)
   lastStepTime_ = esp_timer_get_time();
   currentPhase_ = 0; // Start with buildup phase
   currentLed_ = 0;
+  isComplete_ = false;
 
   // Start with all LEDs off
   driver.clear();
@@ -339,68 +206,52 @@ void PortalOpenEffect::begin(ILEDDriver &driver)
 
 void PortalOpenEffect::update(ILEDDriver &driver, int64_t currentTime)
 {
-  if (currentTime - lastStepTime_ >= stepDurationMs_ * 500)
+  if (isComplete_)
+    return;
+
+  switch (currentPhase_)
   {
-    switch (currentPhase_)
+  case 0: // Sequential activation of first 6 LEDs
+    if (currentTime - lastStepTime_ >= stepDurationMs_ * 1000)
     {
-    case 0:                // Buildup phase: turn on first 6 LEDs one by one
-      if (currentLed_ < 6) // First 6 LEDs (indices 0-5)
+      if (currentLed_ < 6)
       {
-        // Turn on current LED with dimmed purple (80% brightness)
         driver.setPixel(logicalToPhysical(currentLed_), COLOR_PORTAL_DIM_GRB);
         driver.show();
-        ESP_LOGI("PortalOpen", "Buildup: LED %d turned on (dimmed)", currentLed_);
-
+        ESP_LOGI("PortalOpen", "Sequential: LED %d turned on", currentLed_);
         currentLed_++;
-        if (currentLed_ >= 6)
-        {
-          // All 6 LEDs are now on, move to climax preparation
-          currentPhase_ = 1;
-          ESP_LOGI("PortalOpen", "Buildup complete, entering climax preparation");
-        }
+        lastStepTime_ = currentTime;
       }
-      break;
-
-    case 1: // Climax preparation: all 6 LEDs on, wait for dramatic pause
-      // Just wait in this phase - all 6 LEDs are already on
-      currentPhase_ = 2; // Move to climax
-      ESP_LOGI("PortalOpen", "Climax preparation complete, starting climax");
-      break;
-
-    case 2: // Climax: turn on 7th LED and turn off first 6
-      // Turn off first 6 LEDs
-      for (size_t i = 0; i < 6; i++)
+      else
       {
-        driver.setPixel(logicalToPhysical(i), 0);
+        currentPhase_ = 1;
+        ESP_LOGI("PortalOpen", "Sequential complete, moving to last LED");
       }
-
-      // Turn on 7th LED (index 6) with full brightness
-      driver.setPixel(logicalToPhysical(6), COLOR_PORTAL_GRB);
-      driver.show();
-      ESP_LOGI("PortalOpen", "Climax: First 6 LEDs off, 7th LED on (full brightness)");
-
-      // Move to cycling phase instead of resetting
-      currentPhase_ = 3;
-      currentLed_ = 0;
-      ESP_LOGI("PortalOpen", "Starting cycling phase");
-      break;
-
-    case 3: // Cycling phase: 7th LED stays on, single light cycles through first 6 LEDs
-      // Turn off current cycling LED
-      driver.setPixel(logicalToPhysical(currentLed_), 0);
-
-      // Move to next LED (cycle through first 6 LEDs only)
-      currentLed_ = (currentLed_ + 1) % 6;
-
-      // Turn on next cycling LED with dimmed purple (7th LED stays on at full brightness)
-      driver.setPixel(logicalToPhysical(currentLed_), COLOR_PORTAL_DIM_GRB);
-      driver.show();
-
-      ESP_LOGI("PortalOpen", "Cycling: LED %d active (dimmed), 7th LED remains on (full brightness)", currentLed_);
-      break;
     }
+    break;
 
-    lastStepTime_ = currentTime;
+  case 1: // Turn on last LED
+    driver.setPixel(logicalToPhysical(7), COLOR_PORTAL_GRB);
+    driver.show();
+    ESP_LOGI("PortalOpen", "Last LED turned on");
+    currentPhase_ = 2;
+    lastStepTime_ = currentTime; // Start 1s timer
+    break;
+
+  case 2: // Wait 1 second
+    if (currentTime - lastStepTime_ >= 1000000)
+    {
+      currentPhase_ = 3;
+      ESP_LOGI("PortalOpen", "1 second wait complete, turning all off");
+    }
+    break;
+
+  case 3: // Turn all off and complete
+    driver.clear();
+    driver.show();
+    isComplete_ = true;
+    ESP_LOGI("PortalOpen", "All LEDs off, effect complete");
+    break;
   }
 }
 
@@ -507,10 +358,7 @@ void EffectManager::initializeEffects()
 
   // Initialize random blink effect as the fourth effect (index 3)
   effects_[3] = std::make_unique<RandomBlinkEffect>();
-
-  // Initialize WiFi mode effect as the fifth effect (index 4)
-  effects_[4] = std::make_unique<WiFiModeEffect>();
-  effectCount_ = 5;
+  effectCount_ = 4;
 
   // TODO: Add more effects here in the future
   // effects_[4] = std::make_unique<SolidColorEffect>();

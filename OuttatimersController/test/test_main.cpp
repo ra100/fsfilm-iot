@@ -54,17 +54,6 @@ void test_effects_config_constants(void)
 }
 
 /**
- * Test: Verify WiFi configuration constants
- */
-void test_wifi_config_constants(void)
-{
-    TEST_ASSERT_EQUAL(10000, ControllerConfig::WiFi::CONNECTION_TIMEOUT_MS);
-    TEST_ASSERT_EQUAL(80, ControllerConfig::WiFi::HTTP_PORT);
-    TEST_ASSERT_EQUAL(3, ControllerConfig::WiFi::MAX_CONNECTION_ATTEMPTS);
-    TEST_ASSERT_EQUAL(1000, ControllerConfig::WiFi::CONNECTION_RETRY_DELAY_MS);
-}
-
-/**
  * Test: Basic arithmetic to verify test framework works
  */
 void test_basic_arithmetic(void)
@@ -111,7 +100,6 @@ extern "C" void app_main(void)
     // Configuration tests
     RUN_TEST(test_hardware_config_constants);
     RUN_TEST(test_effects_config_constants);
-    RUN_TEST(test_wifi_config_constants);
     RUN_TEST(test_config_value_ranges);
 
     // Basic functionality tests

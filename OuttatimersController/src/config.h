@@ -50,16 +50,6 @@ namespace ControllerConfig
     constexpr uint8_t ACTIVE_LEDS[ACTIVE_LED_COUNT] = {1, 2, 3, 5, 6, 7, 8, 9};
   }
 
-  // WiFi Configuration
-  namespace WiFi
-  {
-    constexpr unsigned long CONNECTION_TIMEOUT_MS = 10000;    // 10 seconds timeout
-    constexpr int HTTP_PORT = 80;                             // HTTP server port
-    constexpr int MAX_CONNECTION_ATTEMPTS = 3;                // Max connection attempts
-    constexpr unsigned long CONNECTION_RETRY_DELAY_MS = 1000; // 1 second between attempts
-    constexpr bool POWER_SAVE_MODE = true;                    // Enable WiFi power save
-  }
-
   // Power Management Configuration
   namespace Power
   {
