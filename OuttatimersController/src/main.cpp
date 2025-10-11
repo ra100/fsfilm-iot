@@ -150,17 +150,28 @@ int calculateBatteryPercentage(float voltage)
 
 void updateBatteryStatus()
 {
+  static uint8_t previousEffectIndex = 255; // Initialize to invalid value
   int64_t currentTime = esp_timer_get_time();
+  uint8_t currentEffectIndex = effectManager.getCurrentEffectIndex();
 
-  // Read battery voltage periodically
-  if (currentTime - lastBatteryRead > ControllerConfig::Battery::READ_INTERVAL_MS * 1000)
+  // Only monitor battery when BatteryStatusEffect is active (index 2)
+  if (currentEffectIndex == 2)
   {
-    batteryVoltage = readBatteryVoltage();
-    batteryPercentage = calculateBatteryPercentage(batteryVoltage);
+    // Force immediate update when switching to BatteryStatusEffect
+    bool forceUpdate = (previousEffectIndex != 2);
 
-    ESP_LOGI(TAG, "Battery: %.2fV (%d%%)", batteryVoltage, batteryPercentage);
-    lastBatteryRead = currentTime;
+    // Read battery voltage every 1 second for real-time display
+    if (forceUpdate || currentTime - lastBatteryRead > 1000000) // 1 second in microseconds
+    {
+      batteryVoltage = readBatteryVoltage();
+      batteryPercentage = calculateBatteryPercentage(batteryVoltage);
+
+      ESP_LOGI(TAG, "Battery: %.2fV (%d%%)", batteryVoltage, batteryPercentage);
+      lastBatteryRead = currentTime;
+    }
   }
+
+  previousEffectIndex = currentEffectIndex;
 }
 
 // Onboard LED control functions
