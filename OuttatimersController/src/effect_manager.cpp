@@ -1,8 +1,9 @@
 #include "effect_manager.h"
 #include <esp_log.h>
 
-// Global battery percentage variable accessible by effects
+// Global battery variables accessible by effects
 extern int batteryPercentage;
+extern bool batteryConnected;
 
 // RandomBlinkEffect implementation
 
@@ -161,10 +162,7 @@ void BatteryStatusEffect::update(ILEDDriver &driver, int64_t currentTime)
     // Note: This requires the batteryPercentage variable to be accessible
     // For now, we'll use a placeholder - this should be set by the main application
     extern int batteryPercentage; // Access global battery variable from main.cpp
-
-    size_t ledsToLight = calculateLedCount(batteryPercentage);
-
-    ESP_LOGI("BatteryStatus", "Battery: %d%% - LEDs to light: %d", batteryPercentage, ledsToLight);
+    extern bool batteryConnected; // Access global battery connection state
 
     // Clear all LEDs first
     for (size_t i = 0; i < ControllerConfig::Effects::ACTIVE_LED_COUNT; i++)
@@ -172,10 +170,32 @@ void BatteryStatusEffect::update(ILEDDriver &driver, int64_t currentTime)
       driver.setPixel(logicalToPhysical(i), 0);
     }
 
-    // Light up the appropriate number of LEDs
-    for (size_t i = 0; i < ledsToLight && i < ControllerConfig::Effects::ACTIVE_LED_COUNT; i++)
+    if (batteryConnected)
     {
-      driver.setPixel(logicalToPhysical(i), COLOR_GREEN_GRB);
+      // Battery detected - show green LEDs based on percentage
+      size_t ledsToLight = calculateLedCount(batteryPercentage);
+
+      ESP_LOGI("BatteryStatus", "Battery connected: YES, Battery: %d%% - LEDs to light: %d",
+               batteryPercentage, ledsToLight);
+
+      // Light up the appropriate number of LEDs in green
+      for (size_t i = 0; i < ledsToLight && i < ControllerConfig::Effects::ACTIVE_LED_COUNT; i++)
+      {
+        uint8_t physicalLed = logicalToPhysical(i);
+        driver.setPixel(physicalLed, COLOR_GREEN_GRB);
+        ESP_LOGI("BatteryStatus", "Setting LED %d (logical %d) to green", physicalLed, i);
+      }
+
+      ESP_LOGI("BatteryStatus", "LEDs shown - %d green LEDs lit for battery level", ledsToLight);
+    }
+    else
+    {
+      // No battery detected - show red LED pattern for debugging
+      ESP_LOGI("BatteryStatus", "Battery connected: NO - Showing red debug pattern");
+
+      // Show first LED red to indicate no battery detected
+      driver.setPixel(logicalToPhysical(0), COLOR_RED_GRB);
+      ESP_LOGI("BatteryStatus", "Setting LED %d to red (no battery detected)", logicalToPhysical(0));
     }
 
     driver.show();
@@ -351,7 +371,7 @@ void EffectManager::initializeEffects()
   effects_[0] = std::make_unique<RotatingDarknessEffect>(200); // 200ms per step
 
   // Initialize portal open effect as the second effect (index 1)
-  effects_[1] = std::make_unique<PortalOpenEffect>(500); // 500ms per step
+  effects_[1] = std::make_unique<PortalOpenEffect>(200); // 500ms per step
 
   // Initialize battery status effect as the third effect (index 2)
   effects_[2] = std::make_unique<BatteryStatusEffect>();

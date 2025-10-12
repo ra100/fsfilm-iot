@@ -118,7 +118,7 @@ private:
 class PortalOpenEffect : public ILEDEffect
 {
 public:
-  PortalOpenEffect(uint32_t stepDurationMs = 500) : stepDurationMs_(stepDurationMs), lastStepTime_(0), currentPhase_(0), currentLed_(0), isComplete_(false) {}
+  PortalOpenEffect(uint32_t stepDurationMs = 200) : stepDurationMs_(stepDurationMs), lastStepTime_(0), currentPhase_(0), currentLed_(0), isComplete_(false) {}
 
   void begin(ILEDDriver &driver) override;
   void update(ILEDDriver &driver, int64_t currentTime) override;
@@ -177,6 +177,7 @@ private:
 
   // Color definitions using helper function
   static constexpr uint32_t COLOR_GREEN_GRB = makeColor(255, 0, 0); // Green color for battery status
+  static constexpr uint32_t COLOR_RED_GRB = makeColor(0, 255, 0);   // Red color for no battery detected
 
   /**
    * @brief Convert logical LED index to physical LED index

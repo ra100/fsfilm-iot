@@ -64,10 +64,29 @@ namespace ControllerConfig
   // Battery Monitoring Configuration
   namespace Battery
   {
-    constexpr int VOLTAGE_PIN = 0;                   // GPIO0 (A0/D0) - ADC for battery voltage (XIAO ESP32C6 BAT+ pin)
-    constexpr float VOLTAGE_DIVIDER_RATIO = 1.0f;    // Voltage divider ratio (R2/(R1+R2)) - no divider on this board
-    constexpr float MIN_VOLTAGE = 3.0f;              // Minimum battery voltage (discharged)
-    constexpr float MAX_VOLTAGE = 4.2f;              // Maximum battery voltage (fully charged)
-    constexpr unsigned long READ_INTERVAL_MS = 5000; // Battery read interval (5 seconds)
+    constexpr int VOLTAGE_PIN = 0;                    // GPIO0 (A0/D0) - ADC for battery voltage (XIAO ESP32C6 BAT+ pin)
+    constexpr float VOLTAGE_DIVIDER_RATIO = 2.0f;     // Voltage divider ratio for 200k resistor in 1:2 configuration
+    constexpr float MIN_VOLTAGE = 3.0f;               // Minimum battery voltage (discharged)
+    constexpr float MAX_VOLTAGE = 4.2f;               // Maximum battery voltage (fully charged)
+    constexpr unsigned long READ_INTERVAL_MS = 5000;  // Battery read interval (5 seconds)
+    constexpr unsigned long PRESENCE_CHECK_MS = 5000; // Battery presence check interval (5 seconds)
+
+    // Enhanced battery detection thresholds (tunable for stability)
+    constexpr int USB_POWER_VARIANCE_THRESHOLD = 30;     // mV - Reduced for better battery detection
+    constexpr int FLOATING_PIN_VARIANCE_THRESHOLD = 120; // mV - Reduced for better battery detection
+    constexpr int HYSTERESIS_CONFIRMATION_COUNT = 1;     // Number of consecutive readings needed to confirm state change (reduced for faster response)
+
+    // Simplified range-based detection thresholds for battery-only scenarios
+    // If voltage > 2.5V and < 4.5V, assume battery connected (simpler detection)
+    constexpr int BATTERY_VOLTAGE_MIN_MV = 2500; // 2.5V - Minimum battery voltage (reduced for resistor drop)
+    constexpr int BATTERY_VOLTAGE_MAX_MV = 4500; // 4.5V - Maximum battery voltage (increased for overlap)
+    constexpr int USB_VOLTAGE_MIN_MV = 4600;     // 4.6V - Minimum USB voltage (after resistor drop)
+    constexpr int USB_VOLTAGE_MAX_MV = 5000;     // 5.0V - Maximum USB voltage (before resistor drop)
+    constexpr int DETECTION_HYSTERESIS_MV = 0;   // No hysteresis for simpler detection
+
+    // Voltage-dependent compensation factors for 200k resistor
+    constexpr float LOW_VOLTAGE_COMPENSATION = 1.02f;  // < 3.5V
+    constexpr float MID_VOLTAGE_COMPENSATION = 1.04f;  // 3.5V - 3.8V
+    constexpr float HIGH_VOLTAGE_COMPENSATION = 1.06f; // > 3.8V
   }
 }
