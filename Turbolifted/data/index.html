@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Portal Controller</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #1a1a1a;
+            color: #fff;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            background: #2c2c2c;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .message {
+            background: #4CAF50;
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            text-align: center;
+            display: none;
+        }
+        .button {
+            display: inline-block;
+            padding: 15px 30px;
+            margin: 10px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 18px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        .button:hover { background: #45a049; }
+        .malfunction { background: #f44336; }
+        .malfunction:hover { background: #da190b; }
+        .fadeout { background: #ff9800; }
+        .fadeout:hover { background: #e68900; }
+        .status-box {
+            background: #333;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .config-form {
+            background: #333;
+            padding: 20px;
+            border-radius: 5px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            box-sizing: border-box;
+        }
+        .form-group button {
+            padding: 10px 15px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.3s;
+            margin-top: 5px;
+        }
+        .form-group button:hover { background: #45a049; }
+        .range-slider {
+            width: 100%;
+            margin-top: 10px;
+        }
+        .range-value {
+            display: inline-block;
+            margin-left: 10px;
+            font-weight: bold;
+        }
+        .hue-gradient {
+            width: 100%;
+            height: 30px;
+            border-radius: 4px;
+            margin-top: 10px;
+            border: 1px solid #ccc;
+        }
+        .tab-buttons {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        .tab-button {
+            padding: 10px 20px;
+            margin: 0 5px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        .tab-button.active { background: #45a049; }
+        .tab-button:hover:not(.active) { background: #40a040; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .footer {
+            text-align: center;
+            padding: 10px;
+            background: #2c2c2c;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+        .controls-section, .config-section {
+            margin-bottom: 30px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🌀 Portal Controller</h1>
+            <p>Control your LED portal effects with ease</p>
+        </div>
+        <div id="message" class="message"></div>
+
+        <div class="tab-buttons">
+            <button class="tab-button active" onclick="showTab('main')">Main</button>
+            <button class="tab-button" onclick="showTab('status')">Status</button>
+        </div>
+
+        <div id="main" class="tab-content active">
+            <div class="config-section">
+                <h2>Device Configuration</h2>
+                <div class="form-group">
+                    <label for="device-ip">Device IP Address (e.g., 192.168.1.100):</label>
+                    <input type="text" id="device-ip" placeholder="Enter device IP" value="">
+                    <button class="button" onclick="setServer()">Set Server & Load Config</button>
+                    <small id="server-status">Using current origin (if loaded from device)</small>
+                </div>
+            </div>
+
+            <div class="controls-section">
+                <h2>Portal Controls</h2>
+                <p>Use these buttons to control your portal effect:</p>
+                <div style="text-align: center;">
+                    <button class="button" onclick="sendCommand('toggle')">Toggle Portal</button><br>
+                    <button class="button malfunction" onclick="sendCommand('malfunction')">Trigger Malfunction</button><br>
+                    <button class="button fadeout" onclick="sendCommand('fadeout')">Fade Out</button><br>
+                </div>
+            </div>
+
+            <div class="config-section">
+                <h2>Effect Settings</h2>
+                <p>Adjust these settings to customize your portal effect:</p>
+
+                <div class="form-group">
+                    <label for="speed">Rotation Speed (0-10, 0=stop):</label>
+                    <input type="range" id="speed" min="0" max="10" value="2" class="range-slider" oninput="updateValue('speed', this.value)" onmouseup="setConfig('speed', this.value)">
+                    <span id="speed-value" class="range-value">2</span>
+                    <button class="button" onclick="setConfig('speed', document.getElementById('speed').value)">Set Speed</button>
+                </div>
+
+                <div class="form-group">
+                    <label for="brightness">Max Brightness (0-255):</label>
+                    <input type="range" id="brightness" min="0" max="255" value="255" class="range-slider" oninput="updateValue('brightness', this.value)" onmouseup="setConfig('brightness', this.value)">
+                    <span id="brightness-value" class="range-value">255</span>
+                    <button class="button" onclick="setConfig('brightness', document.getElementById('brightness').value)">Set Brightness</button>
+                </div>
+
+                <div class="form-group">
+                    <label for="mode">Portal Mode:</label>
+                    <select id="mode" onchange="setConfig('mode', this.value)" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc; background: #333; color: #fff;">
+                        <option value="0">Classic</option>
+                        <option value="1">Virtual Gradients</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="hue-min">Color Hue Min (0-255):</label>
+                    <input type="range" id="hue-min" min="0" max="255" value="160" class="range-slider" oninput="updateValue('hue-min', this.value); updateHueGradient();" onmouseup="setHueRangeOnChange()">
+                    <span id="hue-min-value" class="range-value">160</span>
+                </div>
+
+                <div class="form-group">
+                    <label for="hue-max">Color Hue Max (0-255):</label>
+                    <input type="range" id="hue-max" min="0" max="255" value="200" class="range-slider" oninput="updateValue('hue-max', this.value); updateHueGradient();" onmouseup="setHueRangeOnChange()">
+                    <span id="hue-max-value" class="range-value">200</span>
+                </div>
+
+                <canvas id="hue-gradient" class="hue-gradient"></canvas>
+
+                <div class="form-group">
+                    <label for="sat-min">Color Saturation Min (0-255):</label>
+                    <input type="range" id="sat-min" min="0" max="255" value="128" class="range-slider" oninput="updateValue('sat-min', this.value); updateSaturationGradient();" onmouseup="setSaturationRangeOnChange()">
+                    <span id="sat-min-value" class="range-value">128</span>
+                </div>
+
+                <div class="form-group">
+                    <label for="sat-max">Color Saturation Max (0-255):</label>
+                    <input type="range" id="sat-max" min="0" max="255" value="255" class="range-slider" oninput="updateValue('sat-max', this.value); updateSaturationGradient();" onmouseup="setSaturationRangeOnChange()">
+                    <span id="sat-max-value" class="range-value">255</span>
+                </div>
+
+                <canvas id="saturation-gradient" class="hue-gradient"></canvas>
+            </div>
+        </div>
+
+        <div id="status" class="tab-content">
+            <div class="status-box">
+                <h2>System Status</h2>
+                <p>Current system information:</p>
+                <div id="status-content">
+                    <p>Loading status...</p>
+                </div>
+                <button class="button" onclick="fetchStatus()">Refresh Status</button>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>Portal Controller v1.0 - Made with ❤️ for LED enthusiasts</p>
+        </div>
+    </div>
+
+    <script>
+        let baseURL = window.location.origin; // Default to current origin (device)
+        let hueCanvas = document.getElementById('hue-gradient');
+        let hueCtx = hueCanvas.getContext('2d');
+        let saturationCanvas = document.getElementById('saturation-gradient');
+        let saturationCtx = saturationCanvas.getContext('2d');
+
+        // Load saved server from localStorage
+        const savedIP = localStorage.getItem('deviceIP') || '';
+        document.getElementById('device-ip').value = savedIP;
+        if (savedIP) {
+            baseURL = 'http://' + savedIP + ':80';
+            document.getElementById('server-status').textContent = 'Using custom server: http://' + savedIP + ':80';
+        } else if (window.location.protocol !== 'http:') {
+            document.getElementById('server-status').textContent = 'Loaded locally - please set device IP';
+        } else {
+            document.getElementById('server-status').textContent = 'Using current origin (device)';
+        }
+
+        function setServer() {
+            const ip = document.getElementById('device-ip').value.trim();
+            if (ip) {
+                localStorage.setItem('deviceIP', ip);
+                baseURL = 'http://' + ip + ':80';
+                document.getElementById('server-status').textContent = 'Using custom server: http://' + ip + ':80';
+                showMessage('Server set to ' + ip + ' - Loading config...');
+                fetchConfig(); // Load config from new server
+                updateSaturationGradient(); // Update gradient after server change
+            } else {
+                localStorage.removeItem('deviceIP');
+                baseURL = window.location.origin;
+                if (window.location.protocol !== 'http:') {
+                    document.getElementById('server-status').textContent = 'Loaded locally - please set device IP';
+                } else {
+                    document.getElementById('server-status').textContent = 'Using current origin (device)';
+                }
+                showMessage('Using default server');
+                fetchConfig(); // Reload config
+                updateSaturationGradient(); // Update saturation gradient after server change
+            }
+            updateHueGradient(); // Update gradient after server change
+        }
+
+        function showTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+
+            document.querySelectorAll('.tab-button').forEach(button => {
+                button.classList.remove('active');
+            });
+
+            document.getElementById(tabId).classList.add('active');
+
+            document.querySelectorAll('.tab-button').forEach(button => {
+                if (button.onclick.toString().includes(tabId)) {
+                    button.classList.add('active');
+                }
+            });
+
+            if (tabId === 'status') {
+                fetchStatus();
+            }
+        }
+
+        function updateValue(id, value) {
+            document.getElementById(id + '-value').textContent = value;
+        }
+
+        function hsvToRgb(h, s, v) {
+            h = (h / 255) * 360; // Convert to degrees for standard HSV
+            s /= 100;
+            v /= 100;
+
+            const C = v * s;
+            const X = C * (1 - Math.abs(((h / 60) % 2) - 1));
+            const m = v - C;
+
+            let r = 0, g = 0, b = 0;
+            if (h >= 0 && h < 60) { r = C; g = X; b = 0; }
+            else if (h >= 60 && h < 120) { r = X; g = C; b = 0; }
+            else if (h >= 120 && h < 180) { r = 0; g = C; b = X; }
+            else if (h >= 180 && h < 240) { r = 0; g = X; b = C; }
+            else if (h >= 240 && h < 300) { r = X; g = 0; b = C; }
+            else if (h >= 300 && h < 360) { r = C; g = 0; b = X; }
+
+            r = Math.round((r + m) * 255);
+            g = Math.round((g + m) * 255);
+            b = Math.round((b + m) * 255);
+
+            return { r, g, b };
+        }
+
+        function rgbToHex(r, g, b) {
+            return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1).toUpperCase();
+        }
+
+        function updateHueGradient() {
+            const minHue = parseInt(document.getElementById('hue-min').value);
+            const maxHue = parseInt(document.getElementById('hue-max').value);
+            hueCanvas.width = hueCanvas.offsetWidth;
+            const width = hueCanvas.width;
+            const height = hueCanvas.height;
+            hueCtx.clearRect(0, 0, width, height);
+
+            const numSteps = width;
+            const stepSize = 1 / numSteps;
+
+            if (minHue <= maxHue) {
+                // Non-wrapping: direct linear interpolation
+                for (let x = 0; x < width; x++) {
+                    const ratio = x / (width - 1);
+                    const hue = minHue + (maxHue - minHue) * ratio;
+                    const { r, g, b } = hsvToRgb(hue, 100, 100);
+                    hueCtx.fillStyle = rgbToHex(r, g, b);
+                    hueCtx.fillRect(x, 0, 1, height);
+                }
+            } else {
+                // Wrapping: split into two segments (min to 255, then 0 to max)
+                const totalLength = (255 - minHue) + (maxHue + 1); // Hue range length
+                let x = 0;
+
+                // First segment: minHue to 255
+                const firstLen = 255 - minHue;
+                const firstSteps = Math.floor((width * firstLen) / totalLength);
+                for (let i = 0; i < firstSteps; i++) {
+                    const ratio = i / (firstSteps - 1);
+                    const hue = minHue + (firstLen * ratio);
+                    const { r, g, b } = hsvToRgb(hue, 100, 100);
+                    hueCtx.fillStyle = rgbToHex(r, g, b);
+                    hueCtx.fillRect(x, 0, 1, height);
+                    x++;
+                }
+
+                // Second segment: 0 to maxHue
+                const secondLen = maxHue + 1;
+                const secondSteps = width - firstSteps;
+                for (let i = 0; i < secondSteps; i++) {
+                    const ratio = i / (secondSteps - 1);
+                    const hue = 0 + (secondLen * ratio);
+                    const { r, g, b } = hsvToRgb(hue, 100, 100);
+                    hueCtx.fillStyle = rgbToHex(r, g, b);
+                    hueCtx.fillRect(x, 0, 1, height);
+                    x++;
+                }
+            }
+        }
+
+        function updateSaturationGradient() {
+            const minSat = parseInt(document.getElementById('sat-min').value);
+            const maxSat = parseInt(document.getElementById('sat-max').value);
+            const fixedHue = 180; // Use a fixed hue (cyan) for saturation demonstration
+            saturationCanvas.width = saturationCanvas.offsetWidth;
+            const width = saturationCanvas.width;
+            const height = saturationCanvas.height;
+            saturationCtx.clearRect(0, 0, width, height);
+
+            const numSteps = width;
+            const stepSize = 1 / numSteps;
+
+            if (minSat <= maxSat) {
+                // Non-wrapping: direct linear interpolation
+                for (let x = 0; x < width; x++) {
+                    const ratio = x / (width - 1);
+                    const saturation = minSat + (maxSat - minSat) * ratio;
+                    const { r, g, b } = hsvToRgb(fixedHue, saturation, 100);
+                    saturationCtx.fillStyle = rgbToHex(r, g, b);
+                    saturationCtx.fillRect(x, 0, 1, height);
+                }
+            } else {
+                // Wrapping: split into two segments (min to 255, then 0 to max)
+                const totalLength = (255 - minSat) + (maxSat + 1); // Saturation range length
+                let x = 0;
+
+                // First segment: minSat to 255
+                const firstLen = 255 - minSat;
+                const firstSteps = Math.floor((width * firstLen) / totalLength);
+                for (let i = 0; i < firstSteps; i++) {
+                    const ratio = i / (firstSteps - 1);
+                    const saturation = minSat + (firstLen * ratio);
+                    const { r, g, b } = hsvToRgb(fixedHue, saturation, 100);
+                    saturationCtx.fillStyle = rgbToHex(r, g, b);
+                    saturationCtx.fillRect(x, 0, 1, height);
+                    x++;
+                }
+
+                // Second segment: 0 to maxSat
+                const secondLen = maxSat + 1;
+                const secondSteps = width - firstSteps;
+                for (let i = 0; i < secondSteps; i++) {
+                    const ratio = i / (secondSteps - 1);
+                    const saturation = 0 + (secondLen * ratio);
+                    const { r, g, b } = hsvToRgb(fixedHue, saturation, 100);
+                    saturationCtx.fillStyle = rgbToHex(r, g, b);
+                    saturationCtx.fillRect(x, 0, 1, height);
+                    x++;
+                }
+            }
+        }
+
+        function setHueRangeOnChange() {
+            const min = document.getElementById('hue-min').value;
+            const max = document.getElementById('hue-max').value;
+
+            fetch(baseURL + '/set_hue?min=' + min + '&max=' + max)
+                .then(response => response.text())
+                .then(data => {
+                    showMessage(data);
+                })
+                .catch(error => {
+                    showMessage('Error: ' + error, true);
+                });
+        }
+
+        function setSaturationRangeOnChange() {
+            const min = document.getElementById('sat-min').value;
+            const max = document.getElementById('sat-max').value;
+
+            fetch(baseURL + '/set_saturation?min=' + min + '&max=' + max)
+                .then(response => response.text())
+                .then(data => {
+                    showMessage(data);
+                })
+                .catch(error => {
+                    showMessage('Error: ' + error, true);
+                });
+        }
+
+        function showMessage(msg, isError = false) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.textContent = msg;
+            messageDiv.style.background = isError ? '#f44336' : '#4CAF50';
+            messageDiv.style.display = 'block';
+            setTimeout(() => {
+                messageDiv.style.display = 'none';
+            }, 3000);
+        }
+
+        function sendCommand(endpoint) {
+            fetch(baseURL + '/' + endpoint)
+                .then(response => response.text())
+                .then(data => {
+                    showMessage(data);
+                })
+                .catch(error => {
+                    showMessage('Error: ' + error, true);
+                });
+        }
+
+        function setConfig(param, value) {
+            let endpoint;
+            if (param === 'speed') {
+                endpoint = 'set_speed?speed=' + value;
+            } else if (param === 'brightness') {
+                endpoint = 'set_brightness?brightness=' + value;
+            } else if (param === 'mode') {
+                endpoint = 'set_mode?mode=' + value;
+            } else if (param === 'saturation') {
+                endpoint = 'set_saturation?min=' + document.getElementById('sat-min').value + '&max=' + document.getElementById('sat-max').value;
+            }
+
+            if (endpoint) {
+                fetch(baseURL + '/' + endpoint)
+                    .then(response => response.text())
+                    .then(data => {
+                        showMessage(data);
+                        if (param === 'speed') {
+                            document.getElementById('speed').value = value;
+                            document.getElementById('speed-value').textContent = value;
+                        } else if (param === 'brightness') {
+                            document.getElementById('brightness').value = value;
+                            document.getElementById('brightness-value').textContent = value;
+                        } else if (param === 'mode') {
+                            document.getElementById('mode').value = value;
+                        } else if (param === 'saturation') {
+                            document.getElementById('sat-min').value = document.getElementById('sat-min').value;
+                            document.getElementById('sat-min-value').textContent = document.getElementById('sat-min').value;
+                            document.getElementById('sat-max').value = document.getElementById('sat-max').value;
+                            document.getElementById('sat-max-value').textContent = document.getElementById('sat-max').value;
+                        }
+                    })
+                    .catch(error => {
+                        showMessage('Error: ' + error, true);
+                    });
+            }
+        }
+
+        function fetchStatus() {
+            fetch(baseURL + '/status')
+                .then(response => response.text())
+                .then(data => {
+                    document.getElementById('status-content').innerHTML = '<pre>' + data + '</pre>';
+                })
+                .catch(error => {
+                    document.getElementById('status-content').innerHTML = '<p>Error loading status: ' + error + '</p>';
+                });
+        }
+
+        function fetchConfig() {
+            fetch(baseURL + '/config')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('speed').value = data.speed;
+                    document.getElementById('speed-value').textContent = data.speed;
+                    document.getElementById('brightness').value = data.brightness;
+                    document.getElementById('brightness-value').textContent = data.brightness;
+                    document.getElementById('hue-min').value = data.hueMin;
+                    document.getElementById('hue-min-value').textContent = data.hueMin;
+                    document.getElementById('hue-max').value = data.hueMax;
+                    document.getElementById('hue-max-value').textContent = data.hueMax;
+                    document.getElementById('sat-min').value = data.satMin;
+                    document.getElementById('sat-min-value').textContent = data.satMin;
+                    document.getElementById('sat-max').value = data.satMax;
+                    document.getElementById('sat-max-value').textContent = data.satMax;
+                    document.getElementById('mode').value = data.mode;
+                    updateHueGradient();
+                    updateSaturationGradient();
+                })
+                .catch(error => {
+                    console.error('Error loading config:', error);
+                    showMessage('Failed to load config from server', true);
+                });
+        }
+
+        // Initialize
+        updateHueGradient();
+        updateSaturationGradient();
+        fetchConfig();
+    </script>
+</body>
+</html>

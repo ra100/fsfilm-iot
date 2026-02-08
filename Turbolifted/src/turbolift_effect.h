@@ -1,0 +1,888 @@
+#pragma once
+
+#include "effects.h"
+#include "led_driver.h"
+#include "config.h"
+#include "config_manager.h"
+#ifndef UNIT_TEST
+#include <Arduino.h>
+#include <math.h>
+#else
+// When running unit tests on host, provide a declaration for millis() with C linkage
+extern "C" unsigned long millis();
+#endif
+
+#ifdef UNIT_TEST
+// Provide small helpers to emulate Arduino behavior used in turbolift_effect
+#include <cstdlib>
+static inline int rnd(int max) { return rand() % max; }
+static inline int rndRange(int a, int b) { return a + (rand() % (b - a)); }
+static inline float rndf(int max) { return (float)(rand() % max); }
+static inline float constrainf(float v, float a, float b) { return v < a ? a : (v > b ? b : v); }
+
+// Simple CHSV -> CRGB, using hue only as index into a small palette approximation
+static inline CRGB CHSV(uint8_t h, uint8_t s, uint8_t v)
+{
+  // naive mapping for tests: treat hue 0 -> red, 85 -> green, 170 -> blue
+  if (h < 85)
+    return CRGB(v, (uint8_t)((h * s) / 85), 0);
+  if (h < 170)
+    return CRGB((uint8_t)(((170 - h) * s) / 85), v, 0);
+  return CRGB(0, (uint8_t)(((h - 170) * s) / 85), v);
+}
+
+// Provide Arduino-like random() overloads for host tests but avoid defining a
+// function named `random` that conflicts with libc; use arduino_random and map
+// the macro name `random` to it.
+static inline long arduino_random(long max)
+{
+  if (max <= 0)
+    return 0;
+  return rand() % max;
+}
+static inline long arduino_random(long min, long max)
+{
+  if (max <= min)
+    return min;
+  return min + (rand() % (max - min));
+}
+#define random(...) arduino_random(__VA_ARGS__)
+
+// constrain macro compatibility
+#define constrain(x, a, b) (constrainf((x), (a), (b)))
+#endif
+
+// Template TurboliftEffect uses a driver and static buffers sized at compile time
+template <int N, int GRADIENT_STEP, int GRADIENT_MOVE>
+class TurboliftEffectTemplate
+{
+public:
+  TurboliftEffectTemplate(ILEDDriver *driver) : _driver(driver)
+  {
+    NUM_LEDS = N;
+    gradientPosition = 0;
+    gradientPos1 = 0;
+    gradientPos2 = 0;
+    animationActive = false;
+    fadeInActive = false;
+    fadeInStart = 0;
+    fadeOutActive = false;
+    fadeOutStart = 0;
+    malfunctionActive = false;
+    lastUpdate = 0;
+    numGradientPoints = 0;
+    sequenceInitialized = false;
+    // Lift animation state
+    liftPosition = 0.0f;
+    liftLastMove = 0;
+    previousColor = CRGB(0, 0, 0);
+    targetColor = CRGB(0, 0, 0);
+    colorBlendFactor = 0.0f;
+  }
+
+  void begin()
+  {
+    _driver->begin();
+    _leds = _driver->getBuffer();
+    // effectLeds are static arrays
+  }
+
+  void setBrightness(uint8_t b) { _driver->setBrightness(b); }
+  void fillSolid(const CRGB &c)
+  {
+    _driver->fillSolid(c);
+    _driver->show();
+  }
+  void clear()
+  {
+    _driver->clear();
+    _driver->show();
+  }
+
+  void start()
+  {
+    if (!animationActive)
+    {
+      animationActive = true;
+      fadeInActive = true;
+      fadeInStart = millis();
+      gradientPosition = 0;
+      generateTurboliftEffect(effectLeds);
+    }
+  }
+
+  void stop()
+  {
+    animationActive = false;
+    _driver->clear();
+    _driver->show();
+  }
+
+  void triggerFadeOut()
+  {
+    if (!fadeOutActive && (animationActive || malfunctionActive))
+    {
+      fadeOutActive = true;
+      fadeOutStart = millis();
+      fadeInActive = false;
+      animationActive = false;
+      malfunctionActive = false;
+    }
+  }
+
+  void triggerMalfunction()
+  {
+    if (!malfunctionActive)
+    {
+      malfunctionActive = true;
+      animationActive = false;
+    }
+  }
+
+  void update(unsigned long now)
+  {
+    if (fadeOutActive || malfunctionActive || animationActive)
+    {
+      if (now - lastUpdate >= 10)
+      {
+        uint8_t mode = ConfigManager::getEffectMode();
+        
+        // Handle effect regeneration for legacy modes
+        if (animationActive && ConfigManager::needsEffectRegeneration())
+        {
+          if (mode == (uint8_t)TurboliftConfig::Effects::EffectMode::CLASSIC)
+          {
+            generateTurboliftEffect(effectLeds);
+          }
+          else if (mode == (uint8_t)TurboliftConfig::Effects::EffectMode::VIRTUAL_GRADIENT)
+          {
+            generateVirtualGradients();
+          }
+          ConfigManager::clearEffectRegenerationFlag();
+        }
+
+        // Dispatch to appropriate effect based on mode
+        switch (mode)
+        {
+        case (uint8_t)TurboliftConfig::Effects::EffectMode::SINGLE_COLOR:
+          singleColorEffect(now);
+          break;
+        case (uint8_t)TurboliftConfig::Effects::EffectMode::LIFT_ANIMATION:
+          liftAnimationEffect(now);
+          break;
+        case (uint8_t)TurboliftConfig::Effects::EffectMode::CLASSIC:
+        {
+          int speed = ConfigManager::getRotationSpeed();
+          gradientPosition = (gradientPosition + speed) % NUM_LEDS;
+          turboliftEffect();
+          break;
+        }
+        case (uint8_t)TurboliftConfig::Effects::EffectMode::VIRTUAL_GRADIENT:
+        {
+          int speed = ConfigManager::getRotationSpeed();
+          gradientPos1 = (gradientPos1 + speed) % NUM_LEDS;
+          gradientPos2 = (gradientPos2 - speed + NUM_LEDS) % NUM_LEDS;
+          virtualGradientEffect();
+          break;
+        }
+        }
+        
+        if (malfunctionActive)
+          turboliftMalfunctionEffect();
+          
+        lastUpdate = now;
+      }
+    }
+  }
+
+private:
+  ILEDDriver *_driver;
+  CRGB *_leds;
+#ifdef UNIT_TEST
+public:
+  CRGB *testGenerateTurboliftEffect(CRGB *effectLeds) { return generateTurboliftEffect(effectLeds); }
+  int testGetDriverIndex(int i) { return driverIndices[i]; }
+  void testGenerateVirtualGradients() { generateVirtualGradients(); }
+  CRGB *testGetSequence1() { return sequence1; }
+  CRGB *testGetSequence2() { return sequence2; }
+  bool testIsSequenceInitialized() { return sequenceInitialized; }
+#endif
+  CRGB effectLeds[N]; // Changed from static to instance storage
+  int numGradientPoints;
+
+  int NUM_LEDS;
+  int gradientPosition;
+  int gradientPos1;
+  int gradientPos2;
+  bool animationActive;
+  bool fadeInActive;
+  unsigned long fadeInStart;
+  bool fadeOutActive;
+  unsigned long fadeOutStart;
+  bool malfunctionActive;
+  unsigned long lastUpdate;
+  // Virtual gradient sequences (instance storage)
+  CRGB sequence1[TurboliftConfig::Hardware::NUM_LEDS];
+  CRGB sequence2[TurboliftConfig::Hardware::NUM_LEDS];
+  bool sequenceInitialized;
+  uint8_t lastHueMin; // Track hue values to detect changes
+  uint8_t lastHueMax;
+  uint8_t lastSatMin; // Track saturation values to detect changes
+  uint8_t lastSatMax;
+
+  // Lift animation state
+  float liftPosition;        // Current position (0.0 to 1.0)
+  unsigned long liftLastMove;// Last time position was updated
+  CRGB previousColor;        // For smooth color transitions
+  CRGB targetColor;          // Target color for smooth transitions
+  float colorBlendFactor;    // Current blend factor for color transition
+
+  void generateVirtualGradients()
+  {
+    // Generate and seed virtual gradient sequences used by virtualGradientEffect
+    uint8_t currentHueMin = ConfigManager::getHueMin();
+    uint8_t currentHueMax = ConfigManager::getHueMax();
+    uint8_t currentSatMin = ConfigManager::getSatMin();
+    uint8_t currentSatMax = ConfigManager::getSatMax();
+
+    // Check if hue or saturation values have changed since last generation
+    if (sequenceInitialized && currentHueMin == lastHueMin && currentHueMax == lastHueMax &&
+        currentSatMin == lastSatMin && currentSatMax == lastSatMax)
+    {
+      Serial.println("Virtual gradient: No changes detected, skipping regeneration");
+      return;
+    }
+
+    Serial.print("Virtual gradient: Regenerating sequences - ");
+    if (currentHueMin != lastHueMin || currentHueMax != lastHueMax)
+      Serial.print("hue changed ");
+    if (currentSatMin != lastSatMin || currentSatMax != lastSatMax)
+      Serial.print("saturation changed ");
+    Serial.println();
+
+    // Update tracked values
+    lastHueMin = currentHueMin;
+    lastHueMax = currentHueMax;
+    lastSatMin = currentSatMin;
+    lastSatMax = currentSatMax;
+
+    // Seed random once per regeneration cycle
+    randomSeed(millis());
+
+    // Generate sequence 1 using driver-based approach
+    generateVirtualSequence(sequence1, currentHueMin);
+
+    // Generate sequence 2 using driver-based approach with different hue
+    generateVirtualSequence(sequence2, currentHueMax);
+
+    sequenceInitialized = true;
+  }
+
+  void generateVirtualSequence(CRGB *sequence, uint8_t hue)
+  {
+    const int minDist = TurboliftConfig::Effects::MIN_DRIVER_DISTANCE;
+    const int maxDist = TurboliftConfig::Effects::MAX_DRIVER_DISTANCE;
+
+    // Create driver positions at random distances
+    int driverIndices[TurboliftConfig::Hardware::NUM_LEDS / minDist + 2]; // Conservative size
+    CRGB driverColors[TurboliftConfig::Hardware::NUM_LEDS / minDist + 2];
+    int numDrivers = 0;
+    int idx = 0;
+
+    while (idx < TurboliftConfig::Hardware::NUM_LEDS - minDist && numDrivers < TurboliftConfig::Hardware::NUM_LEDS / minDist)
+    {
+      driverIndices[numDrivers] = idx;
+
+      // Only every 3rd driver gets color, others are black
+      if (numDrivers % 3 == 0)
+      {
+        // Randomly select hue from min to max range for more dynamic effect
+        uint8_t hueMin = ConfigManager::getHueMin();
+        uint8_t hueMax = ConfigManager::getHueMax();
+        uint8_t randomHue;
+
+        if (hueMin <= hueMax)
+        {
+          randomHue = hueMin + random(hueMax - hueMin + 1);
+        }
+        else
+        {
+          // Handle wrap-around (e.g., min=250, max=10)
+          uint8_t range1 = 256 - hueMin;
+          uint8_t range2 = hueMax + 1;
+          if (random(range1 + range2) < range1)
+          {
+            randomHue = hueMin + random(range1);
+          }
+          else
+          {
+            randomHue = random(range2);
+          }
+        }
+
+        uint8_t satMin = ConfigManager::getSatMin();
+        uint8_t satMax = ConfigManager::getSatMax();
+        uint8_t satRange = satMax - satMin;
+        uint8_t sat = satMin + random(satRange + 1);
+        uint8_t val = TurboliftConfig::Effects::TURBOLIFT_VAL_BASE + random(TurboliftConfig::Effects::TURBOLIFT_VAL_RANGE);
+        driverColors[numDrivers] = CHSV(randomHue, sat, val);
+      }
+      else
+      {
+        driverColors[numDrivers] = CRGB(0, 0, 0); // Black for breaks
+      }
+
+      numDrivers++;
+      int step = minDist + random(maxDist - minDist + 1);
+      if (idx + step > TurboliftConfig::Hardware::NUM_LEDS - minDist)
+        break;
+      idx += step;
+    }
+
+    // Close the loop
+    driverIndices[numDrivers] = TurboliftConfig::Hardware::NUM_LEDS;
+    driverColors[numDrivers] = driverColors[0];
+    numDrivers++;
+
+    // Calculate gradients between drivers
+    for (int d = 0; d < numDrivers - 1; d++)
+    {
+      int start = driverIndices[d];
+      int end = driverIndices[d + 1];
+      CRGB c1 = driverColors[d];
+      CRGB c2 = driverColors[d + 1];
+      int segLen = end - start;
+
+      for (int i = 0; i < segLen; i++)
+      {
+        float ratio = (segLen == 1) ? 0.0f : (float)i / (segLen - 1);
+        CRGB col = interpolateColor(c1, c2, ratio);
+        int pos = start + i;
+        if (pos >= 0 && pos < TurboliftConfig::Hardware::NUM_LEDS)
+          sequence[pos] = col;
+      }
+    }
+  }
+
+  CRGB getRandomDriverColorInternal()
+  {
+    // Handle hue range with wrap-around (e.g., min=250, max=10 for crossing 0/255)
+    uint8_t hueMin = ConfigManager::getHueMin();
+    uint8_t hueMax = ConfigManager::getHueMax();
+    uint8_t length;
+    if (hueMin <= hueMax)
+    {
+      length = hueMax - hueMin + 1;
+    }
+    else
+    {
+      length = 256 - hueMin + hueMax + 1;
+    }
+    uint8_t offset = random(length);
+    uint8_t hue = (hueMin + offset) % 256;
+
+    uint8_t satMin = ConfigManager::getSatMin();
+    uint8_t satMax = ConfigManager::getSatMax();
+    uint8_t satRange = satMax - satMin;
+    uint8_t sat = satMin + random(satRange + 1);
+    if (random(10) == 0)    // 1 in 10 chance for low saturation
+      sat = 0 + random(50); // Low saturation range
+    uint8_t val = TurboliftConfig::Effects::TURBOLIFT_VAL_BASE + random(TurboliftConfig::Effects::TURBOLIFT_VAL_RANGE);
+    return CHSV(hue, sat, val);
+  }
+
+  CRGB *generateDriverColors(CRGB *driverColors, int &numDrivers, bool useBlackDrivers = false, uint8_t hue = 0)
+  {
+    const int minDist = TurboliftConfig::Effects::MIN_DRIVER_DISTANCE;
+    const int maxDist = TurboliftConfig::Effects::MAX_DRIVER_DISTANCE;
+    static int driverIndices[N];
+    numDrivers = 0;
+    int idx = 0;
+    while (idx < NUM_LEDS - minDist && numDrivers < N - 1)
+    {
+      driverIndices[numDrivers] = idx;
+      driverColors[numDrivers] = getRandomDriverColorInternal();
+      numDrivers++;
+      int step = minDist + random(maxDist - minDist + 1);
+      if (idx + step > NUM_LEDS - minDist)
+        break;
+      idx += step;
+    }
+    driverIndices[numDrivers] = NUM_LEDS;
+    driverColors[numDrivers] = driverColors[0];
+    numDrivers++;
+
+    if (useBlackDrivers)
+    {
+      for (int i = 0; i < numDrivers; i++)
+      {
+        if (i % 2 != 0)
+        {
+          driverColors[i] = CRGB(0, 0, 0); // Black for odd drivers
+        }
+        else
+        {
+          driverColors[i] = CHSV(hue,
+                                 ConfigManager::getSatMin() + random(ConfigManager::getSatMax() - ConfigManager::getSatMin() + 1),
+                                 TurboliftConfig::Effects::TURBOLIFT_VAL_BASE + random(TurboliftConfig::Effects::TURBOLIFT_VAL_RANGE));
+        }
+      }
+    }
+
+    return driverColors;
+  }
+
+  typedef CRGB (*DriverColorGenerator)(int driverIndex);
+
+  void generateTurboliftEffect(CRGB *effectLeds, DriverColorGenerator colorGen = nullptr)
+  {
+    const int minDist = TurboliftConfig::Effects::MIN_DRIVER_DISTANCE;
+    const int maxDist = TurboliftConfig::Effects::MAX_DRIVER_DISTANCE;
+    int driverIndices[N];
+    CRGB driverColors[N];
+    int numDrivers = 0;
+    int idx = 0;
+
+    while (idx < NUM_LEDS - minDist && numDrivers < N - 1)
+    {
+      driverIndices[numDrivers] = idx;
+      if (colorGen)
+        driverColors[numDrivers] = colorGen(numDrivers);
+      else
+        driverColors[numDrivers] = getRandomDriverColorInternal();
+      numDrivers++;
+      int step = minDist + random(maxDist - minDist + 1);
+      if (idx + step > NUM_LEDS - minDist)
+        break;
+      idx += step;
+    }
+    driverIndices[numDrivers] = NUM_LEDS;
+    driverColors[numDrivers] = driverColors[0];
+    numDrivers++;
+
+    for (int d = 0; d < numDrivers - 1; d++)
+    {
+      int start = driverIndices[d];
+      int end = driverIndices[d + 1];
+      CRGB c1 = driverColors[d];
+      CRGB c2 = driverColors[d + 1];
+      int segLen = end - start;
+      for (int i = 0; i < segLen; i++)
+      {
+        float ratio = (segLen == 1) ? 0.0f : (float)i / (segLen - 1);
+        CRGB col = interpolateColor(c1, c2, ratio);
+        int pos = start + i;
+        if (pos >= 0 && pos < NUM_LEDS)
+          effectLeds[pos] = col;
+      }
+    }
+  }
+
+  // Helper function for virtual gradient sequences with black drivers
+  CRGB virtualGradientColorGen(int driverIndex, uint8_t hue)
+  {
+    if (driverIndex % 3 == 0) // 1 color, 2 black pattern
+    {
+      uint8_t satMin = ConfigManager::getSatMin();
+      uint8_t satMax = ConfigManager::getSatMax();
+      uint8_t sat = satMin + random(satMax - satMin + 1);
+      uint8_t val = TurboliftConfig::Effects::TURBOLIFT_VAL_BASE + random(TurboliftConfig::Effects::TURBOLIFT_VAL_RANGE);
+      return CHSV(hue, sat, val);
+    }
+    else
+    {
+      return CRGB(0, 0, 0); // Black for breaks
+    }
+  }
+
+  void turboliftEffect()
+  {
+    float fadeScale = 1.0f;
+    if (fadeInActive)
+    {
+      unsigned long now = millis();
+      float t = (now - fadeInStart) / (float)TurboliftConfig::Timing::FADE_IN_DURATION_MS;
+      fadeScale = constrain(t, 0.0f, 1.0f);
+      if (fadeScale >= 1.0f)
+      {
+        fadeInActive = false;
+        fadeScale = 1.0f;
+      }
+    }
+    else if (fadeOutActive)
+    {
+      unsigned long now = millis();
+      float t = (now - fadeOutStart) / (float)TurboliftConfig::Timing::FADE_OUT_DURATION_MS;
+      fadeScale = 1.0f - constrain(t, 0.0f, 1.0f);
+      if (fadeScale <= 0.0f)
+      {
+        fadeOutActive = false;
+        fadeScale = 0.0f;
+        animationActive = false;
+        _driver->clear();
+        _driver->show();
+        return;
+      }
+    }
+    for (int i = 0; i < NUM_LEDS; i++)
+    {
+      _driver->setPixel(i, effectLeds[(i + gradientPosition) % NUM_LEDS]);
+      if (fadeScale < 1.0f)
+        _driver->getBuffer()[i].nscale8((uint8_t)(fadeScale * 255));
+    }
+    _driver->setBrightness(ConfigManager::getMaxBrightness());
+    _driver->show();
+  }
+
+  void turboliftMalfunctionEffect()
+  {
+    unsigned long now = millis();
+    static unsigned long lastJump = 0;
+    static float targetBrightness = 1.0f;
+    static float currentBrightness = 1.0f;
+    static int jumpInterval = 100;
+    gradientPosition = (gradientPosition + GRADIENT_MOVE) % NUM_LEDS;
+
+    if (now - lastJump > (unsigned long)jumpInterval)
+    {
+      targetBrightness = TurboliftConfig::Effects::MALFUNCTION_BRIGHTNESS_MIN +
+                         TurboliftConfig::Effects::MALFUNCTION_BRIGHTNESS_RANGE * (random(1000) / 1000.0f);
+      jumpInterval = TurboliftConfig::Timing::MALFUNCTION_MIN_JUMP_MS +
+                     random(TurboliftConfig::Timing::MALFUNCTION_MAX_JUMP_MS - TurboliftConfig::Timing::MALFUNCTION_MIN_JUMP_MS);
+      lastJump = now;
+    }
+    float delta = targetBrightness - currentBrightness;
+    currentBrightness += delta * (TurboliftConfig::Effects::MALFUNCTION_BRIGHTNESS_SMOOTHING_MIN +
+                                  TurboliftConfig::Effects::MALFUNCTION_BRIGHTNESS_SMOOTHING_RANGE * (random(1000) / 1000.0f));
+    currentBrightness += (random(-TurboliftConfig::Effects::MALFUNCTION_NOISE_OFFSET, TurboliftConfig::Effects::MALFUNCTION_NOISE_OFFSET + 1)) / 255.0f;
+    currentBrightness = constrain(currentBrightness,
+                                  TurboliftConfig::Effects::MALFUNCTION_BRIGHTNESS_CLAMP_MIN,
+                                  TurboliftConfig::Effects::MALFUNCTION_BRIGHTNESS_CLAMP_MAX);
+
+    for (int i = 0; i < NUM_LEDS; i++)
+    {
+      _driver->setPixel(i, effectLeds[(i + gradientPosition) % NUM_LEDS]);
+      _driver->getBuffer()[i].nscale8((uint8_t)(currentBrightness * TurboliftConfig::Effects::MALFUNCTION_BASE_BRIGHTNESS + TurboliftConfig::Effects::MALFUNCTION_BRIGHTNESS_OFFSET));
+    }
+    _driver->show();
+  }
+
+  // Calculate interpolated brightness for a sequence at a given LED position
+  uint8_t calculateSequenceBrightness(const CRGB *sequence, int ledIndex, int gradientPos, bool clockwise)
+  {
+    int pos = (ledIndex + gradientPos) % TurboliftConfig::Hardware::NUM_LEDS;
+    uint8_t bright = sequence[pos].b;
+
+    // Find next non-black driver for interpolation
+    int nextDriver = clockwise ? (pos + 10) % TurboliftConfig::Hardware::NUM_LEDS : (pos - 10 + TurboliftConfig::Hardware::NUM_LEDS) % TurboliftConfig::Hardware::NUM_LEDS;
+
+    int step = clockwise ? 1 : -1;
+    while (sequence[nextDriver].b == 0 && nextDriver != pos)
+    {
+      nextDriver = (nextDriver + step + TurboliftConfig::Hardware::NUM_LEDS) % TurboliftConfig::Hardware::NUM_LEDS;
+    }
+
+    if (nextDriver != pos)
+    {
+      int dist = clockwise ? (nextDriver - pos + TurboliftConfig::Hardware::NUM_LEDS) % TurboliftConfig::Hardware::NUM_LEDS : (pos - nextDriver + TurboliftConfig::Hardware::NUM_LEDS) % TurboliftConfig::Hardware::NUM_LEDS;
+
+      if (dist > TurboliftConfig::Hardware::NUM_LEDS / 2)
+      {
+        dist = TurboliftConfig::Hardware::NUM_LEDS - dist;
+      }
+
+      float ratio = (float)((ledIndex - pos + TurboliftConfig::Hardware::NUM_LEDS) % TurboliftConfig::Hardware::NUM_LEDS) / dist;
+      bright = (uint8_t)(sequence[pos].b * (1.0f - ratio) + sequence[nextDriver].b * ratio);
+    }
+
+    return bright;
+  }
+
+  // Blend two colors additively, combining both sequences for brighter, more vibrant effect
+  CRGB blendByBrightness(CRGB color1, CRGB color2, uint8_t bright1, uint8_t bright2)
+  {
+    // Additive blending: add RGB components together with clamping
+    uint8_t r = min(255, (uint16_t)color1.r + (uint16_t)color2.r);
+    uint8_t g = min(255, (uint16_t)color1.g + (uint16_t)color2.g);
+    uint8_t b = min(255, (uint16_t)color1.b + (uint16_t)color2.b);
+    return CRGB(r, g, b);
+  }
+
+  // Unified fade calculation for both fade in and fade out
+  float calculateFade(bool isFadeIn, unsigned long startTime, float duration)
+  {
+    unsigned long now = millis();
+    float t = (now - startTime) / duration;
+    float fadeScale = constrain(t, 0.0f, 1.0f);
+
+    if (isFadeIn)
+    {
+      if (fadeScale >= 1.0f)
+      {
+        fadeInActive = false;
+        return 1.0f;
+      }
+      return fadeScale;
+    }
+    else // fade out
+    {
+      fadeScale = 1.0f - fadeScale;
+      if (fadeScale <= 0.0f)
+      {
+        fadeOutActive = false;
+        animationActive = false;
+        _driver->clear();
+        _driver->show();
+        return 0.0f;
+      }
+      return fadeScale;
+    }
+  }
+
+  // Apply fade scaling to a color
+  void applyFade(CRGB &color, float fadeScale)
+  {
+    if (fadeScale < 1.0f)
+    {
+      color.nscale8((uint8_t)(fadeScale * 255));
+    }
+  }
+
+  void virtualGradientEffect()
+  {
+    // Handle fade transitions with unified function
+    float fadeScale = 1.0f;
+    if (fadeInActive)
+    {
+      fadeScale = calculateFade(true, fadeInStart, TurboliftConfig::Timing::FADE_IN_DURATION_MS);
+    }
+    else if (fadeOutActive)
+    {
+      fadeScale = calculateFade(false, fadeOutStart, TurboliftConfig::Timing::FADE_OUT_DURATION_MS);
+      if (fadeScale == 0.0f)
+        return; // Early exit on fade out completion
+    }
+
+    // Ensure virtual sequences are generated
+    if (!sequenceInitialized)
+      generateVirtualGradients();
+
+    // Process each LED using functional composition
+    for (int i = 0; i < TurboliftConfig::Hardware::NUM_LEDS; i++)
+    {
+      // Get the actual LED values from both sequences
+      int pos1 = (i + gradientPos1) % TurboliftConfig::Hardware::NUM_LEDS;
+      int pos2 = (i + gradientPos2 + TurboliftConfig::Hardware::NUM_LEDS) % TurboliftConfig::Hardware::NUM_LEDS;
+
+      CRGB led1 = sequence1[pos1];
+      CRGB led2 = sequence2[pos2];
+
+      // Blend the actual LED values additively
+      CRGB blended = blendByBrightness(led1, led2, 0, 0); // brightness params not needed for additive blending
+
+      // Apply fade scaling
+      applyFade(blended, fadeScale);
+
+      _driver->setPixel(i, blended);
+    }
+
+    _driver->setBrightness(ConfigManager::getMaxBrightness());
+    _driver->show();
+  }
+
+  // =====================================================
+  // SINGLE COLOR EFFECT - Static color display
+  // =====================================================
+  void singleColorEffect(unsigned long now)
+  {
+    (void)now; // Suppress unused parameter warning
+
+    // Handle fade transitions
+    float fadeScale = 1.0f;
+    if (fadeInActive)
+    {
+      fadeScale = calculateFade(true, fadeInStart, TurboliftConfig::Timing::FADE_IN_DURATION_MS);
+    }
+    else if (fadeOutActive)
+    {
+      fadeScale = calculateFade(false, fadeOutStart, TurboliftConfig::Timing::FADE_OUT_DURATION_MS);
+      if (fadeScale == 0.0f)
+        return;
+    }
+
+    // Get color from ConfigManager (using lift animation color settings)
+    uint8_t hue = ConfigManager::getLiftHue();
+    uint8_t sat = ConfigManager::getLiftSaturation();
+    uint8_t val = ConfigManager::getLiftBrightness();
+
+    // Update target color
+    targetColor = CHSV(hue, sat, val);
+
+    // Smooth color transition (blend towards target)
+    if (previousColor != targetColor)
+    {
+      colorBlendFactor += 0.05f; // Gradual blend
+      if (colorBlendFactor >= 1.0f)
+      {
+        previousColor = targetColor;
+        colorBlendFactor = 0.0f;
+      }
+    }
+
+    // Interpolate between previous and target color
+    CRGB currentColor = interpolateColor(previousColor, targetColor, colorBlendFactor);
+
+    // Fill all LEDs with the current color
+    for (int i = 0; i < NUM_LEDS; i++)
+    {
+      CRGB ledColor = currentColor;
+      if (fadeScale < 1.0f)
+      {
+        ledColor.nscale8((uint8_t)(fadeScale * 255));
+      }
+      _driver->setPixel(i, ledColor);
+    }
+
+    _driver->setBrightness(ConfigManager::getLiftBrightness());
+    _driver->show();
+  }
+
+  // =====================================================
+  // LIFT ANIMATION EFFECT - Converging beams from both ends
+  // =====================================================
+  void liftAnimationEffect(unsigned long now)
+  {
+    // Handle fade transitions
+    float fadeScale = 1.0f;
+    if (fadeInActive)
+    {
+      fadeScale = calculateFade(true, fadeInStart, TurboliftConfig::Timing::FADE_IN_DURATION_MS);
+    }
+    else if (fadeOutActive)
+    {
+      fadeScale = calculateFade(false, fadeOutStart, TurboliftConfig::Timing::FADE_OUT_DURATION_MS);
+      if (fadeScale == 0.0f)
+        return;
+    }
+
+    // Get configuration parameters
+    uint8_t speed = ConfigManager::getLiftSpeed();
+    uint8_t width = ConfigManager::getLiftWidth();
+    uint8_t spacing = ConfigManager::getLiftSpacing();
+    uint8_t hue = ConfigManager::getLiftHue();
+    uint8_t sat = ConfigManager::getLiftSaturation();
+    uint8_t brightness = ConfigManager::getLiftBrightness();
+
+    // Calculate delay per LED based on speed
+    unsigned long delayMs = ConfigManager::speedToDelay(speed);
+
+    // Update position based on time
+    if (now - liftLastMove >= delayMs)
+    {
+      liftPosition += 0.01f; // Increment position
+      if (liftPosition >= 1.0f)
+      {
+        liftPosition = 0.0f; // Reset when reaching center
+      }
+      liftLastMove = now;
+    }
+
+    // Clear all LEDs first
+    for (int i = 0; i < NUM_LEDS; i++)
+    {
+      _driver->setPixel(i, CRGB(0, 0, 0));
+    }
+
+    // Calculate center point (bottom of U)
+    int centerLed = NUM_LEDS / 2;
+
+    // Calculate beam positions
+    // Left beam: starts at LED 0, moves toward center
+    // Right beam: starts at LED N-1, moves toward center
+    float leftBeamPos = liftPosition * centerLed;
+    float rightBeamPos = (NUM_LEDS - 1) - (liftPosition * centerLed);
+
+    // Draw left beam (from LED 0 toward center)
+    drawBeam(0, centerLed, leftBeamPos, width, spacing, hue, sat, brightness, fadeScale, true);
+
+    // Draw right beam (from LED N-1 toward center)
+    drawBeam(NUM_LEDS - 1, centerLed, rightBeamPos, width, spacing, hue, sat, brightness, fadeScale, false);
+
+    _driver->setBrightness(brightness);
+    _driver->show();
+  }
+
+  // Draw a beam with fade trails
+  void drawBeam(int startLed, int endLed, float beamPos, uint8_t width, uint8_t spacing,
+                uint8_t hue, uint8_t sat, uint8_t brightness, float fadeScale, bool movingForward)
+  {
+    (void)spacing; // Suppress unused parameter warning
+    int direction = movingForward ? 1 : -1;
+
+    // Iterate from start toward end
+    int led = startLed;
+    int limit = movingForward ? endLed : endLed;
+    
+    while ((movingForward && led <= limit) || (!movingForward && led >= limit))
+    {
+      // Check if this LED is within the beam position
+      float distanceFromBeam;
+      if (movingForward)
+      {
+        distanceFromBeam = beamPos - led;
+      }
+      else
+      {
+        distanceFromBeam = led - beamPos;
+      }
+
+      // Calculate intensity based on distance from beam center
+      if (distanceFromBeam >= 0 && distanceFromBeam < width)
+      {
+        // Within the beam - full brightness at center, fading at edges
+        float intensity = 1.0f - (distanceFromBeam / (float)width);
+        CRGB color = CHSV(hue, sat, (uint8_t)(brightness * intensity));
+        
+        // Add fade trail behind the beam
+        int trailLength = TurboliftConfig::Effects::FADE_TRAIL_LENGTH;
+        if (distanceFromBeam < trailLength)
+        {
+          float trailFade = TurboliftConfig::Effects::FADE_TRAIL_FACTOR * 
+                           (1.0f - distanceFromBeam / (float)trailLength);
+          color.nscale8((uint8_t)(255 * trailFade));
+        }
+
+        if (fadeScale < 1.0f)
+        {
+          color.nscale8((uint8_t)(fadeScale * 255));
+        }
+        
+        _driver->setPixel(led, color);
+      }
+      else if (distanceFromBeam >= width && distanceFromBeam < width + spacing)
+      {
+        // In the spacing zone - dark
+        _driver->setPixel(led, CRGB(0, 0, 0));
+      }
+      else if (distanceFromBeam >= width + spacing && distanceFromBeam < 2 * width + spacing)
+      {
+        // Second beam segment (repeating pattern)
+        float localPos = distanceFromBeam - (width + spacing);
+        float intensity = 1.0f - (localPos / (float)width);
+        CRGB color = CHSV(hue, sat, (uint8_t)(brightness * intensity * 0.7f)); // Slightly dimmer second beam
+        
+        if (fadeScale < 1.0f)
+        {
+          color.nscale8((uint8_t)(fadeScale * 255));
+        }
+        
+        _driver->setPixel(led, color);
+      }
+
+      led += direction;
+    }
+  }
+};
+
+// Static storage definitions removed - now using instance storage
+// This eliminates the critical bug where multiple instances would share the same buffers
