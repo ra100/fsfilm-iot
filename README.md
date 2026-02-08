@@ -1,2 +1,5 @@
-# st-outtatimers-iot
-Companion code for props from Outtatimers A Star Trek Fan Production
+# FSFilm IoT
+
+> repository for small IoT implementations used in FSFilm Fan Production
+
+see more: https://fsfilm.cz
