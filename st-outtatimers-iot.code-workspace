@@ -12,7 +12,8 @@
 			"path": "Outtatimers Portal"
 		},
 		{
-			"path": "OuttatimersController"
+			"name": "Outtatimers Controller",
+			"path": "Outtatimers Controller"
 		}
 	],
 	"settings": {
